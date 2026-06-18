@@ -5,6 +5,43 @@ All notable changes to **Skill Context Manager (SCM)** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-06-19 — Multi-Agent MCP Setup Registry
+
+### Added
+- **Multi-agent MCP setup registry** (`src/scm/mcp_setup.py`) — single command
+  to configure SCM as an MCP server for **13 agent platforms**:
+  `claude-code`, `claude-desktop`, `cursor`, `windsurf`, `cline`, `gemini`,
+  `vscode`, `zed`, `codex`, `goose`, `continue`, `opencode`, `hermes`.
+- **`scm mcp setup --all`** — configure all 13 platforms at once.
+- **`scm mcp setup --<agent>`** — per-agent flags (e.g. `--claude-code`).
+- **`scm mcp setup --list`** — show all supported agents with config paths.
+- **`scm mcp status`** — enhanced to check config across all platforms.
+- **8 config writers** — JSON (`mcpServers`, `servers`, `context_servers`,
+  `mcp`), YAML (`mcp_servers`, `extensions`, `mcpServers` list), and
+  TOML (`[mcp_servers.scm]`).
+- **`tests/test_mcp_setup.py`** — 26 tests covering every platform, add/
+  remove/status/idempotency/merge safety/unknown platform.
+- `mcp>=1.0` added to core dependencies (headline MCP feature now works
+  out of the box).
+
+### Fixed
+- **`mcp` package missing from dependencies** — `scm.mcp_server` would crash
+  with `ModuleNotFoundError` on a fresh install. Now a core dependency.
+- **Bash scripts with Python docstrings** — `install-mcp-hermes.sh`,
+  `install-mcp-opencode.sh`, `scm-mcp.sh` opened with Python `"""` blocks
+  that bash would try to execute as commands.
+- **`datetime.utcnow()` deprecation (Python 3.13+)** — `db.py`, `models.py`,
+  `session.py`, `tracker.py` now use timezone-aware UTC via `datetime.now(timezone.utc)`.
+- **MCP test crash when `mcp` not installed** — `test_regression.py` test
+  `test_all_tools_return_dict` now skip-safe with `pytest.importorskip`.
+- **README version badge mismatch** — badge said 0.2.2, footer said 0.2.1.
+
+### Changed
+- CLI refactored: `scm mcp setup` now registry-driven instead of hardcoded
+  per-agent branches. Adding a new agent = one entry in the registry dict.
+- Version bumped to **0.3.0** (major feature: multi-agent registry).
+- Test suite: 101 → **127 tests** (all passing).
+
 ## [0.2.2] - 2026-06-18 — MCP Setup CLI + uv-first Install
 
 ### Added
@@ -115,13 +152,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History (Reference)
 
-| Version | Date       | Type   | Highlights |
-|---------|-----------|--------|------------|
-| 0.2.2   | 2026-06-18 | Minor  | scm mcp setup CLI, uv-first install, README restructured |
-| 0.2.1   | 2026-06-18 | Patch  | 16 bug fixes, 24 regression tests |
-| 0.2.0   | 2026-06-18 | Minor  | Initial public release, MCP server |
+|| Version | Date       | Type   | Highlights |
+||---------|-----------|--------|------------|
+|| 0.3.0   | 2026-06-19 | Minor  | Multi-agent MCP setup registry, 13 platforms, bug fixes |
+|| 0.2.2   | 2026-06-18 | Minor  | scm mcp setup CLI, uv-first install, README restructured |
+|| 0.2.1   | 2026-06-18 | Patch  | 16 bug fixes, 24 regression tests |
+|| 0.2.0   | 2026-06-18 | Minor  | Initial public release, MCP server |
 
-[Unreleased]: https://github.com/Mavis2103/skill-context-manager/compare/v0.2.2...HEAD
-[0.2.2]: https://github.com/Mavis2103/skill-context-manager/compare/v0.2.1...v0.2.2
+|[Unreleased]: https://github.com/Mavis2103/skill-context-manager/compare/v0.3.0...HEAD
+|[0.3.0]: https://github.com/Mavis2103/skill-context-manager/compare/v0.2.2...v0.3.0
 [0.2.1]: https://github.com/Mavis2103/skill-context-manager/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Mavis2103/skill-context-manager/releases/tag/v0.2.0
