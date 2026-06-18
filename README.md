@@ -108,30 +108,6 @@ curl -fsSL https://raw.githubusercontent.com/Mavis2103/skill-context-manager/mai
 
 Removes: source, venv, database, symlink, PATH config, MCP config.
 
-## Quick Start
-
-```bash
-# 1. Index your skills (10 seconds)
-scm index --dir ~/.hermes/skills/
-# ✅ Indexed 24 skills
-# 📊 Total: 24 skills | 1,847 meta tokens | 12,430 body tokens
-# 📁 Categories: devops, software-development, mlops, creative, data-science
-
-# 2. Query — find the most relevant skill
-scm query "deploy application to kubernetes" --top 3
-# 🔍 Top 3 skills for: "deploy application to kubernetes"
-#   1. kubernetes-deploy
-#      Deploy and manage Kubernetes clusters
-#      [██████████] 92% | hybrid | ~15t meta / ~420t body
-
-# 3. Start session tracking
-scm session start --id my-session-1
-scm session use --skill kubernetes-deploy --query "deploy app"
-
-# 4. Get token-optimized context (only ~30 tokens)
-scm session context --id my-session-1 --query "current task"
-```
-
 ## Features
 
 ### 1. Semantic Skill Retrieval
