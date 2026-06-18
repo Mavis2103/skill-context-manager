@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`scm mcp setup`** subcommand — auto-configure SCM as MCP server for
+  Hermes Agent (`--hermes`) and/or OpenCode (`--opencode`), or both (`--all`).
+- **`scm mcp status`** — check MCP configuration status across platforms.
+- **`scm mcp start`** — launch the MCP server from CLI (`--http` for SSE mode).
+- **`scm mcp setup --uninstall`** — remove SCM MCP config from all platforms.
+- **`scripts/install.sh` upgraded** — uv-first, auto `uv venv`, profile.d PATH,
+  `scm mcp setup --all` integration, `--uninstall` flag, idempotent re-runs,
+  sanity check (`scm stats`), color-coded output, Python version auto-detect.
+
+### Changed
+- README restructured: Installation → Quick Start → Features → … → Development.
+- README MCP section simplified: `scm mcp setup` is the primary path.
+- Install script no longer does raw YAML/JSON manipulation — delegates to
+  `scm mcp setup --all` (and fallback helpers if CLI unavailable).
+
 ### Planned
 - GUI dashboard
 - Multi-agent session sharing
@@ -101,9 +117,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Type   | Highlights |
 |---------|-----------|--------|------------|
+| 0.2.2   | 2026-06-18 | Minor  | scm mcp setup CLI, uv-first install, README restructured |
 | 0.2.1   | 2026-06-18 | Patch  | 16 bug fixes, 24 regression tests |
 | 0.2.0   | 2026-06-18 | Minor  | Initial public release, MCP server |
 
-[Unreleased]: https://github.com/Mavis2103/skill-context-manager/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/Mavis2103/skill-context-manager/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/Mavis2103/skill-context-manager/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/Mavis2103/skill-context-manager/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Mavis2103/skill-context-manager/releases/tag/v0.2.0

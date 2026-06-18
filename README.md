@@ -7,7 +7,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![SQLite FTS5](https://img.shields.io/badge/search-BM25%20%2B%20Embedding%20%2B%20Cross--encoder-green)](https://sqlite.org/fts5.html)
 [![MCP](https://img.shields.io/badge/MCP-Server%20Ready-purple)](https://modelcontextprotocol.io)
-[![Version](https://img.shields.io/badge/version-0.2.1-orange)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.2.2-orange)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-101%20%E2%9C%94%EF%B8%8F-brightgreen)]()
 
 ---
@@ -49,16 +49,40 @@ SCM is a **proxy layer** between the agent and the skill directory. Instead of l
 
 ## Installation
 
-### One-Click Install
+### Requirements
+
+- **Python 3.11+**
+- **uv** (Astral) — auto-installed if missing
+- **git**
+
+### One-Click Install (recommended)
 
 ```bash
+# Basic install (18 seconds)
 curl -fsSL https://raw.githubusercontent.com/Mavis2103/skill-context-manager/main/scripts/install.sh | bash
+
+# With MCP auto-setup (configures Hermes Agent + OpenCode)
+curl -fsSL https://raw.githubusercontent.com/Mavis2103/skill-context-manager/main/scripts/install.sh | bash -s -- --with-mcp
+
+# Custom directory
+curl -fsSL ... | bash -s -- --scm-dir ~/custom/path
 ```
+
+The installer will:
+
+| Step | What happens |
+|------|-------------|
+| ✅ Pre-flight | Check Python 3.11+, install `uv` if needed |
+| ✅ Clone | `git clone --depth 1` to `~/Workspaces/skill-context-manager` |
+| ✅ Venv | `uv venv` + `uv pip install -e .` — zero-dependency core |
+| ✅ Symlink | `~/.local/bin/scm` — auto-PATH via profile.d + shell rc |
+| ✅ Index | Auto-index `~/.hermes/skills/`, `~/.claude/skills/`, `~/.cursor/skills/` |
+| ✅ Sanity | Smoke test + version check |
 
 ### Manual Install
 
 ```bash
-# Requirements: Python 3.11+, uv
+# Requirements: Python 3.11+, uv, git
 git clone https://github.com/Mavis2103/skill-context-manager.git
 cd skill-context-manager
 uv venv
@@ -66,44 +90,45 @@ source .venv/bin/activate
 uv pip install -e .
 
 # Optional: AI models for embedding search and reranking
-uv pip install sentence-transformers transformers torch
+uv pip install scm[full]
 
 # Index common skill directories
 scm index --dir ~/.hermes/skills/
-scm index --dir ~/.claude/skills/
 
 # Add to PATH
 echo 'export PATH="$PATH:'$(pwd)'/.venv/bin"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
+### Uninstall
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Mavis2103/skill-context-manager/main/scripts/install.sh | bash -s -- --uninstall
+```
+
+Removes: source, venv, database, symlink, PATH config, MCP config.
+
 ## Quick Start
 
 ```bash
-# 1. Install
-git clone https://github.com/Mavis2103/skill-context-manager.git
-cd skill-context-manager
-uv venv && source .venv/bin/activate
-uv pip install -e .
-
-# 2. Index your skills
+# 1. Index your skills (10 seconds)
 scm index --dir ~/.hermes/skills/
 # ✅ Indexed 24 skills
 # 📊 Total: 24 skills | 1,847 meta tokens | 12,430 body tokens
 # 📁 Categories: devops, software-development, mlops, creative, data-science
 
-# 3. Query — find the most relevant skill
+# 2. Query — find the most relevant skill
 scm query "deploy application to kubernetes" --top 3
 # 🔍 Top 3 skills for: "deploy application to kubernetes"
 #   1. kubernetes-deploy
 #      Deploy and manage Kubernetes clusters
 #      [██████████] 92% | hybrid | ~15t meta / ~420t body
 
-# 4. Start session tracking
+# 3. Start session tracking
 scm session start --id my-session-1
 scm session use --skill kubernetes-deploy --query "deploy app"
 
-# 5. Get token-optimized context (only ~30 tokens)
+# 4. Get token-optimized context (only ~30 tokens)
 scm session context --id my-session-1 --query "current task"
 ```
 
@@ -271,10 +296,16 @@ SCM runs as an **MCP server** with **11 tools**, compatible with any MCP-compati
 ### Quick Start
 
 ```bash
-# stdio mode (default — for Hermes/OpenCode)
+# Auto-configure for Hermes Agent + OpenCode (idempotent)
+scm mcp setup --all
+
+# Check configuration status
+scm mcp status
+
+# Start server in stdio mode (default — for Hermes/OpenCode)
 python3 -m scm.mcp_server
 
-# HTTP/SSE mode
+# Start server in HTTP/SSE mode
 python3 -m scm.mcp_server --http --port 8321
 ```
 
@@ -296,7 +327,14 @@ python3 -m scm.mcp_server --http --port 8321
 
 ### Hermes Agent Integration
 
-Add to `~/.hermes/config.yaml`:
+```bash
+# Auto-configure
+scm mcp setup --hermes
+
+# Or manual config: add to ~/.hermes/config.yaml
+```
+
+This adds to `~/.hermes/config.yaml`:
 
 ```yaml
 mcp_servers:
@@ -327,7 +365,14 @@ After that, Hermes Agent automatically discovers and can call the MCP tools.
 
 ### OpenCode Integration
 
-Add to `~/.config/opencode/opencode.json` (global) or `opencode.json` (project):
+```bash
+# Auto-configure
+scm mcp setup --opencode
+
+# Or manual config: add to ~/.config/opencode/opencode.json
+```
+
+This adds to `~/.config/opencode/opencode.json`:
 
 ```jsonc
 {
@@ -347,20 +392,22 @@ After restarting OpenCode, MCP tools are auto-discovered. You can then prompt:
 "use scm skill_query to find the best skill for deploying to kubernetes"
 ```
 
-### Universal Integration (any MCP client)
-
-SCM works with **any MCP-compatible client**:
-- Claude Desktop
-- Cursor
-- Continue.dev
-- Cline
-- Goose
-- Windsurf
-
-**Remote mode (HTTP/SSE):**
+### Claude Code / Cline / Cursor / Continue.dev
 
 ```bash
-# Start server in HTTP mode
+scm mcp start --http --port 8321
+
+# Then configure:
+# Claude Desktop: mcpServers → scm → url: http://localhost:8321/sse
+# Cline:          mcpServers → scm → command: ["python3", "-m", "scm.mcp_server"]
+# Cursor:         MCP → Add → command: python3 -m scm.mcp_server
+# Continue.dev:   experimental.mcpServers → scm → command: python3 -m scm.mcp_server
+```
+
+### Remote Mode (HTTP/SSE)
+
+```bash
+# Start server
 python3 -m scm.mcp_server --http --port 8321
 
 # Client config
