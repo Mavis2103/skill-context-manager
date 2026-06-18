@@ -1,6 +1,6 @@
 [project]
 name = "skill-context-manager"
-version = "0.1.0"
+version = "0.2.1"
 description = "Context-aware skill selection for AI agents — solves 'too many skills' problem"
 readme = "README.md"
 requires-python = ">=3.11"

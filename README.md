@@ -7,7 +7,8 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![SQLite FTS5](https://img.shields.io/badge/search-BM25%20%2B%20Embedding%20%2B%20Cross--encoder-green)](https://sqlite.org/fts5.html)
 [![MCP](https://img.shields.io/badge/MCP-Server%20Ready-purple)](https://modelcontextprotocol.io)
-[![Tests](https://img.shields.io/badge/tests-77%20%E2%9C%94%EF%B8%8F-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-0.2.1-orange)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-101%20%E2%9C%94%EF%B8%8F-brightgreen)]()
 
 ---
 
@@ -451,7 +452,8 @@ skill-context-manager/
 │   ├── test_session_feedback.py  # 21 tests — session lifecycle + feedback
 │   ├── test_optimizer.py    # 9 tests — compression/expansion/info-leak
 │   ├── test_tracker.py      # 8 tests — recording/insights/daily-trend
-│   └── test_reranker.py     # 6 tests — fallback/empty/top-k/custom model
+│   ├── test_reranker.py     # 6 tests — fallback/empty/top-k/custom model
+│   └── test_regression.py   # 24 tests — bug regression coverage
 ├── scripts/
 │   ├── install.sh           # One-click install
 │   ├── benchmark.sh         # Performance benchmark
@@ -484,11 +486,14 @@ Single SQLite database (`~/.scm/scm.db`) with WAL mode:
 ### Run Tests
 
 ```bash
-# All 77 tests
+# All 101 tests (77 original + 24 regression)
 uv run pytest -v
 
 # Specific module
 uv run pytest tests/test_indexer.py -v
+
+# Just regression tests
+uv run pytest tests/test_regression.py -v
 
 # Coverage (optional)
 uv run pytest --cov=src/scm/ tests/
@@ -557,6 +562,7 @@ scm session context --id "..." --query "scale deployment"
 - [x] **OpenCode integration**
 - [x] **Single shared DB** (eliminates cross-DB bugs)
 - [x] **77 tests across all modules**
+- [x] **101 tests + 16 bug fixes** (v0.2.1)
 - [ ] GUI dashboard
 - [ ] Multi-agent session sharing
 
@@ -575,3 +581,7 @@ scm session context --id "..." --query "scale deployment"
 ## License
 
 MIT — Copyright (c) 2026 Mavis2103
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history. Current: **v0.2.1**.

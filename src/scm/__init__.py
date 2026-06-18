@@ -2,7 +2,7 @@
 
 from .db import init_schema
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 # Initialize the shared database schema on first import
 init_schema()
