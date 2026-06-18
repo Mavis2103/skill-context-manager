@@ -28,8 +28,6 @@
 - **Anthropic Tool Search**: BM25-based deferred loading, 85% token reduction.
 - **Anthropic internal eval**: Opus 4 accuracy from 79.5% → 49% with >50 tools.
 
----
-
 ## Solution
 
 SCM is a **proxy layer** between the agent and the skill directory. Instead of loading all skills into context, SCM performs:
@@ -49,7 +47,35 @@ SCM is a **proxy layer** between the agent and the skill directory. Instead of l
 | Session tracking (50 messages) | Skills forgotten | **100% recall** | N/A |
 | Query latency (77 skills) | — | **~7ms (BM25)** | Instant |
 
----
+## Installation
+
+### One-Click Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Mavis2103/skill-context-manager/main/scripts/install.sh | bash
+```
+
+### Manual Install
+
+```bash
+# Requirements: Python 3.11+, uv
+git clone https://github.com/Mavis2103/skill-context-manager.git
+cd skill-context-manager
+uv venv
+source .venv/bin/activate
+uv pip install -e .
+
+# Optional: AI models for embedding search and reranking
+uv pip install sentence-transformers transformers torch
+
+# Index common skill directories
+scm index --dir ~/.hermes/skills/
+scm index --dir ~/.claude/skills/
+
+# Add to PATH
+echo 'export PATH="$PATH:'$(pwd)'/.venv/bin"' >> ~/.bashrc
+source ~/.bashrc
+```
 
 ## Quick Start
 
@@ -80,8 +106,6 @@ scm session use --skill kubernetes-deploy --query "deploy app"
 # 5. Get token-optimized context (only ~30 tokens)
 scm session context --id my-session-1 --query "current task"
 ```
-
----
 
 ## Features
 
@@ -178,8 +202,6 @@ scm stats
 #    Body tokens:      12,430
 ```
 
----
-
 ## Architecture
 
 ```
@@ -241,8 +263,6 @@ With SCM:
   Total: ~275 tokens per query
   Savings: 85-98%
 ```
-
----
 
 ## MCP Server
 
@@ -368,8 +388,6 @@ When a skill needs to be selected for a task, use:
 Then load the SKILL.md body of the top-matching skill.
 ```
 
----
-
 ## Graceful Degradation
 
 | Dependencies | Features Available |
@@ -381,40 +399,6 @@ Then load the SKILL.md body of the top-matching skill.
 
 The zero-dependency core works immediately without installing anything extra. AI models are optional.
 
----
-
-## Installation
-
-### One-Click Install
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Mavis2103/skill-context-manager/main/scripts/install.sh | bash
-```
-
-### Manual Install
-
-```bash
-# Requirements: Python 3.11+, uv
-git clone https://github.com/Mavis2103/skill-context-manager.git
-cd skill-context-manager
-uv venv
-source .venv/bin/activate
-uv pip install -e .
-
-# Optional: AI models for embedding search and reranking
-uv pip install sentence-transformers transformers torch
-
-# Index common skill directories
-scm index --dir ~/.hermes/skills/
-scm index --dir ~/.claude/skills/
-
-# Add to PATH
-echo 'export PATH="$PATH:'$(pwd)'/.venv/bin"' >> ~/.bashrc
-source ~/.bashrc
-```
-
----
-
 ## Comparison with Alternatives
 
 | Solution | Progressive Discovery | Semantic Search | Session Memory | Feedback Loop | Token Cost | Zero-Dep |
@@ -425,8 +409,6 @@ source ~/.bashrc
 | **Hermes Skills** | ✅ Metadata only | ❌ Keyword | ❌ No | ❌ No | ~3K tokens | ✅ |
 | **Lunar MCPX** | ✅ Tool groups | ✅ Custom | ❌ No | ❌ No | ~8.7K tokens | ❌ |
 | **✨ SCM (This)** | ✅ Metadata only | ✅ BM25 + Embedding + Cross-encoder | ✅ Full session tracking | ✅ Bayesian | **~275 tokens** | ✅ |
-
----
 
 ## Project Structure
 
@@ -479,40 +461,6 @@ Single SQLite database (`~/.scm/scm.db`) with WAL mode:
 | `feedback` + `skill_weights` + `query_patterns` | Feedback & learning |
 | `usage_events` + `daily_stats` | Usage analytics |
 
----
-
-## Development
-
-### Run Tests
-
-```bash
-# All 101 tests (77 original + 24 regression)
-uv run pytest -v
-
-# Specific module
-uv run pytest tests/test_indexer.py -v
-
-# Just regression tests
-uv run pytest tests/test_regression.py -v
-
-# Coverage (optional)
-uv run pytest --cov=src/scm/ tests/
-```
-
-### Supported Skill Formats
-
-- SKILL.md with YAML frontmatter (Hermes Agent, Claude Code)
-- Plain text files (directory name = skill name)
-
-### Database Migration
-
-```bash
-# SCM auto-migrates schema on version changes (CREATE TABLE IF NOT EXISTS)
-# No manual migration needed
-```
-
----
-
 ## Workflow Example
 
 ### 1. Agent receives a new task
@@ -545,7 +493,35 @@ Agent generates system prompt block:
 scm session context --id "..." --query "scale deployment"
 ```
 
----
+## Development
+
+### Run Tests
+
+```bash
+# All 101 tests (77 original + 24 regression)
+uv run pytest -v
+
+# Specific module
+uv run pytest tests/test_indexer.py -v
+
+# Just regression tests
+uv run pytest tests/test_regression.py -v
+
+# Coverage (optional)
+uv run pytest --cov=src/scm/ tests/
+```
+
+### Supported Skill Formats
+
+- SKILL.md with YAML frontmatter (Hermes Agent, Claude Code)
+- Plain text files (directory name = skill name)
+
+### Database Migration
+
+```bash
+# SCM auto-migrates schema on version changes (CREATE TABLE IF NOT EXISTS)
+# No manual migration needed
+```
 
 ## Roadmap
 
@@ -566,8 +542,6 @@ scm session context --id "..." --query "scale deployment"
 - [ ] GUI dashboard
 - [ ] Multi-agent session sharing
 
----
-
 ## References
 
 1. **SkillRouter: Retrieval-Augmented Skill Selection for LLM Agents at Scale** — Zheng et al., CVPR 2026. [arXiv:2603.22455](https://arxiv.org/abs/2603.22455)
@@ -575,8 +549,6 @@ scm session context --id "..." --query "scale deployment"
 3. **MCP Tool Scalability Problem** — Jenova AI. [Link](https://www.jenova.ai/en/resources/mcp-tool-scalability-problem)
 4. **Skills Over MCPs: Context-Efficient Agent Capabilities** — Agentic Engineer. [Link](https://www.agentic-engineer.com/blog/2025-12-04-skills-over-mcps-context-efficiency)
 5. **Beyond the Prompt: Agent Skills as Dynamic Context Management** — Dev.to. [Link](https://dev.to/peng_r_8a73c977039dac3b9c/beyond-the-prompt-understanding-agent-skills-as-dynamic-context-management-e5o)
-
----
 
 ## License
 
