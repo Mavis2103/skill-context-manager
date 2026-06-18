@@ -7,8 +7,8 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![SQLite FTS5](https://img.shields.io/badge/search-BM25%20%2B%20Embedding%20%2B%20Cross--encoder-green)](https://sqlite.org/fts5.html)
 [![MCP](https://img.shields.io/badge/MCP-Server%20Ready-purple)](https://modelcontextprotocol.io)
-[![Version](https://img.shields.io/badge/version-0.2.2-orange)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-101%20%E2%9C%94%EF%B8%8F-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-0.3.0-orange)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-127%20%E2%9C%94%EF%B8%8F-brightgreen)]()
 
 ---
 
@@ -267,18 +267,80 @@ With SCM:
 
 ## MCP Server
 
-SCM runs as an **MCP server** with **11 tools**, compatible with any MCP-compatible agent (Hermes Agent, OpenCode, Claude Code, Cline, etc.).
+SCM runs as an **MCP server** with **11 tools**, compatible with any MCP-compatible agent.
+
+### Multi-Agent Setup Registry
+
+SCM v0.3.0 ships with a **single-command setup for 13 agent platforms**. Instead of manually
+configuring each agent's MCP settings, run:
+
+```bash
+# Configure for ALL supported agents at once
+scm mcp setup --all
+
+# Or pick specific agents
+scm mcp setup --claude-code --cursor --windsurf --hermes
+
+# Remove SCM config from all agents
+scm mcp setup --all --uninstall
+
+# List all supported platforms with their config paths
+scm mcp setup --list
+```
+
+**Supported platforms:**
+
+| Agent | Flag | Config Path |
+|-------|------|-------------|
+| Claude Code | `--claude-code` | `~/.claude.json` |
+| Claude Desktop | `--claude-desktop` | `~/.config/Claude/claude_desktop_config.json` |
+| Cursor | `--cursor` | `~/.cursor/mcp.json` |
+| Windsurf | `--windsurf` | `~/.codeium/windsurf/mcp_config.json` |
+| Cline | `--cline` | VS Code globalStorage/cline_mcp_settings.json |
+| Gemini CLI | `--gemini` | `~/.gemini/settings.json` |
+| VS Code (Copilot) | `--vscode` | VS Code User/mcp.json |
+| Zed | `--zed` | `~/.config/zed/settings.json` |
+| Codex CLI | `--codex` | `~/.codex/config.toml` |
+| Goose | `--goose` | `~/.config/goose/config.yaml` |
+| Continue.dev | `--continue` | `~/.continue/config.yaml` |
+| OpenCode | `--opencode` | `~/.config/opencode/opencode.json` |
+| Hermes Agent | `--hermes` | `~/.hermes/config.yaml` |
+
+Each platform gets the correct config format automatically:
+
+- **JSON `mcpServers`** — Claude Code, Desktop, Cursor, Windsurf, Cline, Gemini
+- **JSON `servers` (type: stdio)** — VS Code
+- **JSON `context_servers`** — Zed
+- **JSON `mcp` (type: local)** — OpenCode
+- **YAML `mcp_servers`** — Hermes
+- **YAML `extensions`** — Goose
+- **YAML `mcpServers` (list)** — Continue.dev
+- **TOML `[mcp_servers.scm]`** — Codex CLI
+
+### Verify Configuration
+
+```bash
+# Check which agents have SCM configured
+scm mcp status
+
+# Output (example):
+# SCM MCP Status
+#   ✅ Claude Code: Configured
+#   ✅ Cursor: Configured
+#   ○ Windsurf: Config exists, not configured
+#   · Zed: Config not found
+```
 
 ### Quick Start
 
 ```bash
-# Auto-configure for Hermes Agent + OpenCode (idempotent)
+# Auto-configure for all agents (idempotent)
 scm mcp setup --all
 
 # Check configuration status
 scm mcp status
 
-# Start server in stdio mode (default — for Hermes/OpenCode)
+# Start server in stdio mode (default)
 python3 -m scm.mcp_server
 
 # Start server in HTTP/SSE mode
@@ -301,17 +363,12 @@ python3 -m scm.mcp_server --http --port 8321
 | `skill_feedback_stats` | Feedback | View feedback statistics |
 | `skill_insights` | Analytics | Usage analytics dashboard |
 
-### Hermes Agent Integration
+### Per-Agent Config Formats (Reference)
 
-```bash
-# Auto-configure
-scm mcp setup --hermes
+Each agent uses a unique config format. The `scm mcp setup` command handles all of these
+automatically — these examples are for reference:
 
-# Or manual config: add to ~/.hermes/config.yaml
-```
-
-This adds to `~/.hermes/config.yaml`:
-
+**Hermes Agent** (`~/.hermes/config.yaml`):
 ```yaml
 mcp_servers:
   scm:
@@ -339,17 +396,7 @@ hermes mcp test scm
 
 After that, Hermes Agent automatically discovers and can call the MCP tools.
 
-### OpenCode Integration
-
-```bash
-# Auto-configure
-scm mcp setup --opencode
-
-# Or manual config: add to ~/.config/opencode/opencode.json
-```
-
-This adds to `~/.config/opencode/opencode.json`:
-
+**OpenCode** (`~/.config/opencode/opencode.json`):
 ```jsonc
 {
   "mcp": {
@@ -362,22 +409,36 @@ This adds to `~/.config/opencode/opencode.json`:
 }
 ```
 
-After restarting OpenCode, MCP tools are auto-discovered. You can then prompt:
-
+**Claude Code** (`~/.claude.json`):
+```json
+{
+  "mcpServers": {
+    "scm": {
+      "command": "python3",
+      "args": ["-m", "scm.mcp_server"]
+    }
+  }
+}
 ```
-"use scm skill_query to find the best skill for deploying to kubernetes"
+
+**VS Code (Copilot)** (`~/.config/Code/User/mcp.json`):
+```json
+{
+  "servers": {
+    "scm": {
+      "type": "stdio",
+      "command": "python3",
+      "args": ["-m", "scm.mcp_server"]
+    }
+  }
+}
 ```
 
-### Claude Code / Cline / Cursor / Continue.dev
-
-```bash
-scm mcp start --http --port 8321
-
-# Then configure:
-# Claude Desktop: mcpServers → scm → url: http://localhost:8321/sse
-# Cline:          mcpServers → scm → command: ["python3", "-m", "scm.mcp_server"]
-# Cursor:         MCP → Add → command: python3 -m scm.mcp_server
-# Continue.dev:   experimental.mcpServers → scm → command: python3 -m scm.mcp_server
+**Codex CLI** (`~/.codex/config.toml`):
+```toml
+[mcp_servers.scm]
+command = "python3"
+args = ["-m", "scm.mcp_server"]
 ```
 
 ### Remote Mode (HTTP/SSE)
@@ -450,6 +511,7 @@ skill-context-manager/
 │   ├── tracker.py           # Usage analytics
 │   ├── models.py            # Data models (Skill, QueryResult, SessionState, FeedbackRecord)
 │   └── mcp_server.py        # MCP server (11 tools)
+│   └── mcp_setup.py         # Multi-agent MCP setup registry (13 platforms)
 ├── tests/
 │   ├── test_models.py       # 13 tests — data models + YAML parsing
 │   ├── test_indexer.py      # 11 tests — index/reindex/empty/WAL
@@ -458,6 +520,7 @@ skill-context-manager/
 │   ├── test_optimizer.py    # 9 tests — compression/expansion/info-leak
 │   ├── test_tracker.py      # 8 tests — recording/insights/daily-trend
 │   ├── test_reranker.py     # 6 tests — fallback/empty/top-k/custom model
+│   ├── test_mcp_setup.py    # 26 tests — multi-agent registry (13 platforms)
 │   └── test_regression.py   # 24 tests — bug regression coverage
 ├── scripts/
 │   ├── install.sh           # One-click install
@@ -579,4 +642,4 @@ MIT — Copyright (c) 2026 Mavis2103
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for version history. Current: **v0.2.1**.
+See [CHANGELOG.md](CHANGELOG.md) for version history. Current: **v0.3.0**.

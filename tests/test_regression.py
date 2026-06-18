@@ -329,6 +329,7 @@ class TestMCPToolReturnTypes:
 
     def test_all_tools_return_dict(self):
         import inspect
+        pytest.importorskip("mcp", reason="mcp SDK not installed")
         from scm.mcp_server import create_mcp_server
         mcp = create_mcp_server()
         tools = mcp._tool_manager._tools.values()

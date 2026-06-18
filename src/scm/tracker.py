@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 from typing import Optional
 
-from .db import connect, init_schema
+from .db import connect, init_schema, utcnow
 
 
 class UsageTracker:
@@ -22,7 +22,7 @@ class UsageTracker:
     def record_event(self, skill_name: str, query: str, retrieval_method: str,
                      score: float, tokens_saved: int = 0, latency_ms: int = 0):
         """Record a skill selection event."""
-        now = datetime.utcnow()
+        now = utcnow()
         with self._conn() as conn:
             conn.execute("""
                 INSERT INTO usage_events
@@ -57,7 +57,7 @@ class UsageTracker:
 
     def get_insights(self, days: int = 30) -> dict:
         """Get usage insights for the last N days."""
-        cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+        cutoff = (utcnow() - timedelta(days=days)).isoformat()
         with self._conn() as conn:
             total = conn.execute(
                 "SELECT COUNT(*) FROM usage_events WHERE timestamp > ?", (cutoff,)
@@ -76,7 +76,7 @@ class UsageTracker:
             daily = conn.execute("""
                 SELECT date, queries, skills_loaded, tokens_saved FROM daily_stats
                 WHERE date > ? ORDER BY date
-            """, ((datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d"),)).fetchall()
+            """, ((utcnow() - timedelta(days=days)).strftime("%Y-%m-%d"),)).fetchall()
             # Cross-DB unused skills query — now works since skills is in same DB
             unused = conn.execute("""
                 SELECT s.name FROM skills s

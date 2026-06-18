@@ -1,6 +1,6 @@
 [project]
 name = "skill-context-manager"
-version = "0.2.2"
+version = "0.3.0"
 description = "Context-aware skill selection for AI agents — solves 'too many skills' problem"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -10,7 +10,11 @@ authors = [
 ]
 
 dependencies = [
-    # Core: no heavy deps — just Python stdlib + sqlite3
+    # Core: lightweight runtime deps.
+    # - mcp: the MCP server is a headline feature, so the SDK ships by default
+    # - PyYAML: robust SKILL.md frontmatter parsing (naive fallback exists but is lossy)
+    "mcp>=1.0",
+    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -21,6 +25,13 @@ full = [
 ]
 light = [
     "sentence-transformers>=3.0,<4.0",
+]
+http = [
+    # Required only for `scm mcp start --http` (HTTP/SSE transport)
+    "uvicorn>=0.30",
+]
+dev = [
+    "pytest>=8.0",
 ]
 
 [project.scripts]

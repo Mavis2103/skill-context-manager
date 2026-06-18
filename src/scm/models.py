@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field, asdict
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+from .db import utcnow
 
 
 @dataclass
@@ -157,7 +158,7 @@ class SessionState:
         self.skills_used.append({
             "skill": skill_name,
             "query": query,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": utcnow().isoformat(),
             "success": success,
         })
 
@@ -176,4 +177,4 @@ class FeedbackRecord:
     success: bool
     latency_ms: int = 0
     user_rating: Optional[int] = None  # 1-5
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = field(default_factory=lambda: utcnow().isoformat())

@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-"""
-Auto-install SCM MCP server into Hermes Agent config.
-Usage: bash scripts/install-mcp-hermes.sh [--dry-run]
-"""
+# Auto-install SCM MCP server into Hermes Agent config.
+# Usage: bash scripts/install-mcp-hermes.sh [--dry-run]
 
 set -euo pipefail
 

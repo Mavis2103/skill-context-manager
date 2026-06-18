@@ -120,10 +120,14 @@ Examples:
     p_mcp = sub.add_parser("mcp", help="MCP server management")
     p_mcp_sub = p_mcp.add_subparsers(dest="mcp_action", required=True)
 
+    from .mcp_setup import PLATFORMS
     p_mcp_setup = p_mcp_sub.add_parser("setup", help="Configure SCM MCP for agent platforms")
-    p_mcp_setup.add_argument("--hermes", action="store_true", help="Configure for Hermes Agent")
-    p_mcp_setup.add_argument("--opencode", action="store_true", help="Configure for OpenCode")
-    p_mcp_setup.add_argument("--all", action="store_true", help="Configure for all platforms")
+    for key, plat in PLATFORMS.items():
+        p_mcp_setup.add_argument(f"--{key}", action="store_true",
+                                 help=f"Configure for {plat.display}")
+    p_mcp_setup.add_argument("--all", action="store_true", help="Configure for all supported agents")
+    p_mcp_setup.add_argument("--list", action="store_true", dest="list_platforms",
+                             help="List all supported agent platforms")
     p_mcp_setup.add_argument("--uninstall", action="store_true", help="Remove SCM MCP config")
 
     p_mcp_start = p_mcp_sub.add_parser("start", help="Start MCP server")
@@ -423,31 +427,50 @@ def cmd_mcp(args):
         _mcp_status()
 
 
-def _mcp_setup(args):
-    """Configure SCM MCP for agent platforms."""
-    targets = []
-    if args.all:
-        targets = ["hermes", "opencode"]
-    else:
-        if args.hermes:
-            targets.append("hermes")
-        if args.opencode:
-            targets.append("opencode")
+_STATUS_ICON = {
+    "added": "✅", "updated": "🔄", "exists": "✓", "removed": "🗑️",
+    "not_found": "—", "error": "❌",
+}
 
-    if not targets:
-        print("No targets specified. Use --hermes, --opencode, or --all")
+
+def _mcp_setup(args):
+    """Configure SCM MCP for one or more agent platforms (registry-driven)."""
+    from . import mcp_setup as ms
+
+    if getattr(args, "list_platforms", False):
+        print("\nSupported agents (use --<key> or --all):\n")
+        for key, plat in ms.PLATFORMS.items():
+            note = f"  ({plat.note})" if plat.note else ""
+            print(f"   --{key:<16} {plat.display}{note}")
+            print(f"   {'':16}   {plat.path}")
+        print()
         return
 
-    uninstall = args.uninstall
-    action_label = "Removing" if uninstall else "Configuring"
+    if args.all:
+        targets = ms.ALL_KEYS
+    else:
+        targets = [k for k in ms.PLATFORMS if getattr(args, k.replace("-", "_"), False)]
 
-    for target in targets:
-        if target == "hermes":
-            _setup_hermes(uninstall)
-        elif target == "opencode":
-            _setup_opencode(uninstall)
+    if not targets:
+        print("No targets specified. Use --all, --<agent>, or --list to see options.")
+        print("Example: scm mcp setup --claude-code --cursor")
+        return
 
-    print(f"MCP {'uninstalled' if uninstall else 'setup'} complete for: {', '.join(targets)}")
+    results = ms.configure_many(targets, uninstall=args.uninstall)
+    verb = "Removed" if args.uninstall else "Configured"
+    print(f"\nSCM MCP — {verb}\n")
+    ok = 0
+    for r in results:
+        icon = _STATUS_ICON.get(r["status"], "•")
+        print(f"   {icon} {r['display']}: {r['status']}")
+        print(f"      {r['path']}")
+        if r.get("error"):
+            print(f"      error: {r['error']}")
+        if r["status"] in ("added", "updated", "removed", "exists"):
+            ok += 1
+    print(f"\n{ok}/{len(results)} platform(s) {verb.lower()}.")
+    if not args.uninstall and ok:
+        print("Restart the agent(s) to pick up the SCM MCP server.")
 
 
 def _mcp_start(args):
@@ -460,149 +483,23 @@ def _mcp_start(args):
 
 
 def _mcp_status():
-    """Check SCM MCP configuration status across platforms."""
-    results = []
+    """Check SCM MCP configuration status across all supported agents."""
+    from . import mcp_setup as ms
 
-    # Hermes
-    hermes_cfg = Path.home() / ".hermes" / "config.yaml"
-    if hermes_cfg.exists():
-        content = hermes_cfg.read_text()
-        if "mcp_servers" in content and "scm" in content:
-            results.append(("Hermes Agent", "Configured", hermes_cfg))
+    rows = ms.status_all()
+    print("\nSCM MCP Status\n")
+    configured = 0
+    for r in rows:
+        if r["configured"]:
+            label, icon = "Configured", "✅"
+            configured += 1
+        elif r["exists"]:
+            label, icon = "Not configured", "○"
         else:
-            results.append(("Hermes Agent", "Not configured", hermes_cfg))
-    else:
-        results.append(("Hermes Agent", "Config not found", hermes_cfg))
-
-    # OpenCode
-    opencode_cfg = Path.home() / ".config" / "opencode" / "opencode.json"
-    if opencode_cfg.exists():
-        try:
-            import json as _json
-            cfg = _json.loads(opencode_cfg.read_text())
-            if "mcp" in cfg and "scm" in cfg.get("mcp", {}):
-                results.append(("OpenCode", "Configured", opencode_cfg))
-            else:
-                results.append(("OpenCode", "Not configured", opencode_cfg))
-        except Exception:
-            results.append(("OpenCode", "Invalid config", opencode_cfg))
-    else:
-        results.append(("OpenCode", "Config not found", opencode_cfg))
-
-    print("\nSCM MCP Status")
-    for name, status, path in results:
-        print(f"   {status} | {name}")
-        print(f"          {path}")
-
-    configured = sum(1 for _, s, _ in results if s.startswith("C"))
-    if configured > 0:
-        print(f"\n{configured}/{len(results)} platforms configured")
-    else:
-        print("\nRun: scm mcp setup --all")
-
+            label, icon = "Config not found", "·"
+        print(f"   {icon} {label:<16} {r['display']}")
+        print(f"      {r['path']}")
+    print(f"\n{configured}/{len(rows)} agents configured.")
+    if configured == 0:
+        print("Run: scm mcp setup --all")
     print()
-
-
-def _setup_hermes(uninstall: bool = False):
-    """Add or remove SCM MCP config from Hermes Agent config.yaml."""
-    config_path = Path.home() / ".hermes" / "config.yaml"
-
-    if uninstall:
-        if config_path.exists():
-            content = config_path.read_text()
-            import re
-            cleaned = re.sub(
-                r"\nmcp_servers:\n  scm:.*?(?=\n\w|\Z)",
-                "",
-                content,
-                flags=re.DOTALL
-            )
-            if cleaned != content:
-                config_path.write_text(cleaned)
-                print(f"   Removed SCM from {config_path}")
-            else:
-                print(f"   SCM config not found in {config_path}")
-        else:
-            print(f"   {config_path} not found")
-        return
-
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-
-    mcp_block = """
-
-mcp_servers:
-  scm:
-    command: python3
-    args: ["-m", "scm.mcp_server"]
-    allowed_tools:
-      - skill_query
-      - skill_session_start
-      - skill_session_use
-      - skill_session_context
-      - skill_session_end
-      - skill_feedback
-      - skill_feedback_stats
-      - skill_stats
-      - skill_insights
-"""
-
-    if config_path.exists():
-        content = config_path.read_text()
-        if "mcp_servers" in content and "scm" in content:
-            print(f"   SCM already configured in {config_path}")
-            return
-        with open(config_path, "a") as f:
-            f.write(mcp_block)
-        print(f"   Added SCM MCP config to {config_path}")
-    else:
-        config_path.write_text(mcp_block.lstrip())
-        print(f"   Created {config_path} with SCM MCP config")
-
-
-def _setup_opencode(uninstall: bool = False):
-    """Add or remove SCM MCP config from OpenCode opencode.json."""
-    config_path = Path.home() / ".config" / "opencode" / "opencode.json"
-
-    import json as _json
-
-    if uninstall:
-        if config_path.exists():
-            try:
-                cfg = _json.loads(config_path.read_text())
-                mcp = cfg.get("mcp", {})
-                if "scm" in mcp:
-                    del mcp["scm"]
-                    cfg["mcp"] = mcp
-                    config_path.write_text(_json.dumps(cfg, indent=2) + "\n")
-                    print(f"   Removed SCM from {config_path}")
-                else:
-                    print(f"   SCM not configured in {config_path}")
-            except Exception as e:
-                print(f"   Failed to edit {config_path}: {e}")
-        else:
-            print(f"   {config_path} not found")
-        return
-
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-
-    scm_entry = {
-        "type": "local",
-        "command": ["python3", "-m", "scm.mcp_server"],
-        "enabled": True
-    }
-
-    if config_path.exists():
-        try:
-            cfg = _json.loads(config_path.read_text())
-            mcp = cfg.get("mcp", {})
-            if "scm" in mcp:
-                print(f"   SCM already configured in {config_path}")
-                return
-        except Exception:
-            cfg = {}
-    else:
-        cfg = {}
-
-    cfg.setdefault("mcp", {})["scm"] = scm_entry
-    config_path.write_text(_json.dumps(cfg, indent=2) + "\n")
-    print(f"   Added SCM MCP config to {config_path}")

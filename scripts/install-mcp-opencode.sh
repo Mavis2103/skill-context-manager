@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-"""
-Auto-install SCM MCP server into OpenCode config.
-Usage: bash scripts/install-mcp-opencode.sh [--dry-run]
-"""
+# Auto-install SCM MCP server into OpenCode config.
+# Usage: bash scripts/install-mcp-opencode.sh [--dry-run]
 
 set -euo pipefail
 

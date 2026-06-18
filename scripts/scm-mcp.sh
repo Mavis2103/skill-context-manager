@@ -1,16 +1,14 @@
 #!/usr/bin/env bash
-"""
-SCM MCP Wrapper — Launches the Skill Context Manager as an MCP server.
-
-Usage:
-    scm-mcp                    # stdio mode (default, for Hermes Agent)
-    scm-mcp --http             # HTTP/SSE mode (for OpenCode remote)
-    scm-mcp --http --port 8321 # Custom port
-
-Environment:
-    SCM_DB_DIR: Override database directory (default: ~/.scm/)
-    SCM_VERBOSE: Set to 1 for debug output
-"""
+# SCM MCP Wrapper — Launches the Skill Context Manager as an MCP server.
+#
+# Usage:
+#     scm-mcp                    # stdio mode (default, for Hermes Agent)
+#     scm-mcp --http             # HTTP/SSE mode (for OpenCode remote)
+#     scm-mcp --http --port 8321 # Custom port
+#
+# Environment:
+#     SCM_DB_DIR: Override database directory (default: ~/.scm/)
+#     SCM_VERBOSE: Set to 1 for debug output
 
 set -euo pipefail
 

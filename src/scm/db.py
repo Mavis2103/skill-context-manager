@@ -7,12 +7,23 @@ eliminating cross-DB bugs and duplicated WAL/connection code.
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 
 SCM_DB_DIR = Path.home() / ".scm"
 SCM_DB_PATH = SCM_DB_DIR / "scm.db"
+
+
+def utcnow() -> datetime:
+    """Current UTC time as a naive datetime.
+
+    Uses timezone-aware ``datetime.now(timezone.utc)`` (``datetime.utcnow()`` is
+    deprecated in 3.12+) but strips the tzinfo so the resulting ``.isoformat()``
+    string keeps the same shape as legacy rows already in the database.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def get_db_path(db_path: Optional[Path] = None) -> Path:

@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from .db import connect, init_schema
+from .db import connect, init_schema, utcnow
 from .models import SessionState
 
 
@@ -31,7 +30,7 @@ class SessionTracker:
 
         self._active_session = SessionState(
             session_id=session_id,
-            started_at=datetime.utcnow().isoformat(),
+            started_at=utcnow().isoformat(),
             context=metadata or {},
         )
         with self._conn() as conn:
@@ -49,7 +48,7 @@ class SessionTracker:
             return
         with self._conn() as conn:
             conn.execute("UPDATE sessions SET ended_at = ? WHERE session_id = ?",
-                         (datetime.utcnow().isoformat(), sid))
+                         (utcnow().isoformat(), sid))
             conn.commit()
         if self._active_session and self._active_session.session_id == sid:
             self._active_session = None
@@ -63,7 +62,7 @@ class SessionTracker:
         if not session_id:
             return
         sid = session_id
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = utcnow().isoformat()
         with self._conn() as conn:
             conn.execute("""
                 INSERT INTO session_skills (session_id, skill_name, query, timestamp, success)
