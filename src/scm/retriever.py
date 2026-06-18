@@ -113,15 +113,22 @@ class SkillRetriever:
                 if w not in stopwords and len(w) > 2]
 
     def _build_fts_queries(self, query: str) -> list[str]:
-        """Build multiple FTS5 query strategies."""
+        """Build multiple FTS5 query strategies.
+
+        Sanitizes user input to prevent FTS5 syntax injection (quotes, parens,
+        operators like NEAR/AND/OR/NOT) and to handle Unicode/special chars safely.
+        """
         words = self._extract_keywords(query)
         if not words:
-            return [query]
+            return []
+        # Quote each term — FTS5 treats "word" as literal substring
+        safe = [f'"{w}"' for w in words]
         queries = []
         if len(words) >= 2:
-            queries.append(f'"{ " ".join(words[:3]) }"')
-        queries.append(" OR ".join(words))
-        prefix = " OR ".join(f"{w}*" for w in words)
+            queries.append(" ".join(safe[:3]))
+        queries.append(" OR ".join(safe))
+        # Prefix match on first char of each word
+        prefix = " OR ".join(f'"{w}"*' for w in words)
         if prefix:
             queries.append(prefix)
         return queries

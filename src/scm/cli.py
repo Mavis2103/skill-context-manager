@@ -14,7 +14,7 @@ from .retriever import SkillRetriever
 from .reranker import SkillReranker
 from .session import SessionTracker
 from .optimizer import SkillOptimizer
-from .feedback import FeedbackEngine
+from .feedback import FeedbackEngine, FeedbackRecord
 from .tracker import UsageTracker
 
 
@@ -248,11 +248,14 @@ def cmd_session(args):
             print(f"   Skills used: {', '.join(recent)}")
 
     elif args.session_action == "use":
-        sid = args.id or (tracker.get_active_session().session_id
-                          if tracker.get_active_session() else "")
-        if not sid:
-            print("❌ No active session. Use 'scm session start --id <id>' first")
-            return
+        if not args.skill or not args.skill.strip():
+            print("❌ --skill is required. Usage: scm session use --skill <name>")
+            sys.exit(1)
+        session = tracker.get_or_resolve_session(args.id)
+        if not session:
+            print("❌ No active session. Use 'scm session start --id <id>' first, or pass --id")
+            sys.exit(1)
+        sid = session.session_id
         success = None
         if args.success is not None:
             success = args.success.lower() in ("true", "1", "yes")
@@ -266,11 +269,11 @@ def cmd_session(args):
                   f"to teach SCM this skill was {action} for this query")
 
     elif args.session_action == "context":
-        sid = args.id or (tracker.get_active_session().session_id
-                          if tracker.get_active_session() else "")
-        if not sid:
+        session = tracker.get_or_resolve_session(args.id)
+        if not session:
             print("❌ No session specified and no active session")
-            return
+            sys.exit(1)
+        sid = session.session_id
         context = tracker.optimize_skill_context(sid, args.query)
         if args.query:
             retriever = SkillRetriever()

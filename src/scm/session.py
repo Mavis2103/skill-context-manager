@@ -58,15 +58,17 @@ class SessionTracker:
                          success: Optional[bool] = None,
                          session_id: Optional[str] = None):
         """Record that a skill was used."""
-        sid = session_id or (self._active_session.session_id if self._active_session else None)
-        if not sid:
+        if not skill_name or not skill_name.strip():
             return
+        if not session_id:
+            return
+        sid = session_id
         timestamp = datetime.utcnow().isoformat()
         with self._conn() as conn:
             conn.execute("""
                 INSERT INTO session_skills (session_id, skill_name, query, timestamp, success)
                 VALUES (?, ?, ?, ?, ?)
-            """, (sid, skill_name, query, timestamp, 1 if success else 0))
+            """, (sid, skill_name.strip(), query, timestamp, 1 if success else 0))
             conn.commit()
         if self._active_session and self._active_session.session_id == sid:
             self._active_session.record_skill_use(skill_name, query, success)
@@ -108,6 +110,22 @@ class SessionTracker:
 
     def get_active_session(self) -> Optional[SessionState]:
         return self._active_session
+
+    def get_or_resolve_session(self, session_id: Optional[str] = None) -> Optional[SessionState]:
+        """Resolve session by ID, or fall back to in-memory active session, or
+        last-started session in the DB (for cross-process CLI usage)."""
+        if session_id:
+            return self.get_session(session_id)
+        if self._active_session:
+            return self._active_session
+        # Fallback: latest started session in DB
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT session_id FROM sessions ORDER BY started_at DESC LIMIT 1"
+            ).fetchone()
+            if row:
+                return self.get_session(row[0])
+        return None
 
     def optimize_skill_context(self, session_id: Optional[str] = None,
                                query: str = "") -> dict:

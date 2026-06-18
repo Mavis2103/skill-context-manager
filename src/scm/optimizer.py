@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from collections import Counter
 from pathlib import Path
@@ -230,10 +231,17 @@ class SkillOptimizer:
                 f"tags: [{tags_str}]\n---\n\n{content}"
             )
 
-        # Write with backup: write to temp, then rename for atomicity
+        # Write atomically: write to temp, replace atomically. If anything
+        # fails, the original file is untouched.
         tmp = skill_file.with_name(f".{skill_file.name}.tmp")
-        tmp.write_text(new_content, encoding="utf-8")
-        backup = skill_file.with_name(f"{skill_file.name}.bak")
-        skill_file.rename(backup)  # existing → .bak
-        tmp.rename(skill_file)    # tmp → actual
-        backup.unlink()           # remove .bak
+        try:
+            tmp.write_text(new_content, encoding="utf-8")
+            os.replace(tmp, skill_file)
+        except OSError:
+            # Clean up dangling temp file on failure
+            if tmp.exists():
+                try:
+                    tmp.unlink()
+                except OSError:
+                    pass
+            raise

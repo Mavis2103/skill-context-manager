@@ -72,7 +72,7 @@ def create_mcp_server() -> "FastMCP":
         method: str = "hybrid",
         session_id: str = "",
         use_reranker: bool = True,
-    ) -> str:
+    ) -> dict:
         """Find the most relevant skills for a task.
 
         Args:
@@ -145,7 +145,7 @@ def create_mcp_server() -> "FastMCP":
 
     @mcp.tool()
     @safe_call
-    def skill_index(directory: str, recursive: bool = True) -> str:
+    def skill_index(directory: str, recursive: bool = True) -> dict:
         """Index skills from a directory into the search database.
 
         Args:
@@ -171,7 +171,7 @@ def create_mcp_server() -> "FastMCP":
 
     @mcp.tool()
     @safe_call
-    def skill_stats() -> str:
+    def skill_stats() -> dict:
         """Get statistics about the indexed skill database."""
         indexer = SkillIndexer()
         stats = indexer.stats()
@@ -189,7 +189,7 @@ def create_mcp_server() -> "FastMCP":
 
     @mcp.tool()
     @safe_call
-    def skill_session_start(session_id: str, metadata: str = "") -> str:
+    def skill_session_start(session_id: str, metadata: str = "") -> dict:
         """Start a new skill usage tracking session.
 
         Args:
@@ -218,7 +218,7 @@ def create_mcp_server() -> "FastMCP":
         skill_name: str,
         query: str = "",
         success: Optional[bool] = None,
-    ) -> str:
+    ) -> dict:
         """Record that a skill was used in a session.
 
         Args:
@@ -248,7 +248,7 @@ def create_mcp_server() -> "FastMCP":
 
     @mcp.tool()
     @safe_call
-    def skill_session_context(session_id: str, query: str = "") -> str:
+    def skill_session_context(session_id: str, query: str = "") -> dict:
         """Get token-optimized context block for session-aware prompting.
 
         Args:
@@ -271,7 +271,7 @@ def create_mcp_server() -> "FastMCP":
 
     @mcp.tool()
     @safe_call
-    def skill_session_end(session_id: str) -> str:
+    def skill_session_end(session_id: str) -> dict:
         """End a tracking session.
 
         Args:
@@ -290,7 +290,7 @@ def create_mcp_server() -> "FastMCP":
 
     @mcp.tool()
     @safe_call
-    def skill_optimize(directory: str, dry_run: bool = True) -> str:
+    def skill_optimize(directory: str, dry_run: bool = True) -> dict:
         """Analyze and optimize skill metadata for token efficiency.
 
         Args:
@@ -330,7 +330,7 @@ def create_mcp_server() -> "FastMCP":
         skill_name: str,
         success: bool = True,
         rating: Optional[int] = None,
-    ) -> str:
+    ) -> dict:
         """Record feedback about a skill usage.
 
         Args:
@@ -348,7 +348,7 @@ def create_mcp_server() -> "FastMCP":
 
     @mcp.tool()
     @safe_call
-    def skill_feedback_stats() -> str:
+    def skill_feedback_stats() -> dict:
         """Get feedback and learning statistics."""
         engine = FeedbackEngine()
         return engine.get_stats()
@@ -357,7 +357,7 @@ def create_mcp_server() -> "FastMCP":
 
     @mcp.tool()
     @safe_call
-    def skill_insights(days: int = 30) -> str:
+    def skill_insights(days: int = 30) -> dict:
         """Get usage insights for the last N days.
 
         Args:

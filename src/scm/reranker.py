@@ -7,10 +7,13 @@ more accurate relevance scores.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Optional
 
 from .models import Skill, QueryResult
+
+logger = logging.getLogger("scm.reranker")
 
 
 class SkillReranker:
@@ -42,10 +45,10 @@ class SkillReranker:
         try:
             return self._rerank_inner(query, candidates, top_k)
         except ImportError:
-            print("  ℹ️  cross-encoder not installed, using retriever scores")
+            logger.info("cross-encoder not installed, using retriever scores")
             return candidates[:top_k]
         except Exception as e:
-            print(f"  ⚠️  Reranker error: {e}, using retriever scores")
+            logger.warning("Reranker error: %s, using retriever scores", e)
             return candidates[:top_k]
 
     def _rerank_inner(self, query: str, candidates: list[QueryResult],

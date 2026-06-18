@@ -89,20 +89,27 @@ class FeedbackEngine:
             conn.commit()
 
     def apply_weights(self, results: list[QueryResult]) -> list[QueryResult]:
-        """Apply learned weights to adjust retrieval scores."""
+        """Apply learned weights to adjust retrieval scores (returns NEW list, no mutation)."""
         if not results:
             return results
         with self._conn() as conn:
+            weighted: list[QueryResult] = []
             for r in results:
                 row = conn.execute(
                     "SELECT base_weight FROM skill_weights WHERE skill_name = ?",
                     (r.skill.name,)
                 ).fetchone()
                 if row:
-                    r.score = round(r.score * 0.7 + row[0] * 0.3, 4)
-                    r.retrieval_method += "+weighted"
-        results.sort(key=lambda r: r.score, reverse=True)
-        return results
+                    new_score = round(r.score * 0.7 + row[0] * 0.3, 4)
+                    weighted.append(QueryResult(
+                        skill=r.skill,
+                        score=new_score,
+                        retrieval_method=r.retrieval_method + "+weighted",
+                    ))
+                else:
+                    weighted.append(r)
+        weighted.sort(key=lambda r: r.score, reverse=True)
+        return weighted
 
     def get_best_skill_for_query(self, query: str) -> Optional[str]:
         """Get the best known skill for this query pattern."""

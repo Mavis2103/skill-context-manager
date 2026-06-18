@@ -31,14 +31,28 @@ class UsageTracker:
             """, (now.isoformat(), skill_name, query, retrieval_method,
                   score, tokens_saved, latency_ms))
             date_str = now.strftime("%Y-%m-%d")
-            conn.execute("""
-                INSERT INTO daily_stats (date, queries, skills_loaded, tokens_saved, avg_latency_ms)
-                VALUES (?, 1, 1, ?, ?)
-                ON CONFLICT(date) DO UPDATE SET
-                    queries = queries + 1, skills_loaded = skills_loaded + 1,
-                    tokens_saved = tokens_saved + ?,
-                    avg_latency_ms = (avg_latency_ms * queries + ?) / (queries + 1)
-            """, (date_str, tokens_saved, latency_ms, tokens_saved, latency_ms))
+            # Read current values first, then compute correct running average
+            row = conn.execute(
+                "SELECT queries, avg_latency_ms FROM daily_stats WHERE date = ?",
+                (date_str,)
+            ).fetchone()
+            if row:
+                old_queries, old_avg = row[0], row[1] or 0.0
+                new_queries = old_queries + 1
+                new_avg = (old_avg * old_queries + latency_ms) / new_queries
+                conn.execute("""
+                    UPDATE daily_stats
+                    SET queries = ?,
+                        skills_loaded = skills_loaded + 1,
+                        tokens_saved = tokens_saved + ?,
+                        avg_latency_ms = ?
+                    WHERE date = ?
+                """, (new_queries, tokens_saved, new_avg, date_str))
+            else:
+                conn.execute("""
+                    INSERT INTO daily_stats (date, queries, skills_loaded, tokens_saved, avg_latency_ms)
+                    VALUES (?, 1, 1, ?, ?)
+                """, (date_str, tokens_saved, float(latency_ms)))
             conn.commit()
 
     def get_insights(self, days: int = 30) -> dict:

@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Optional
 
 from .db import connect, init_schema
 from .models import Skill
+
+logger = logging.getLogger("scm.indexer")
 
 
 class SkillIndexer:
@@ -23,7 +26,7 @@ class SkillIndexer:
     def index_directory(self, directory: Path, recursive: bool = True) -> int:
         """Scan a directory for SKILL.md files and index them."""
         if not directory.exists():
-            print(f"⚠️  Directory not found: {directory}")
+            logger.warning("Directory not found: %s", directory)
             return 0
 
         count = 0
@@ -34,7 +37,7 @@ class SkillIndexer:
                 self._upsert_skill(skill)
                 count += 1
             except Exception as e:
-                print(f"  ⚠️  Error indexing {skill_file}: {e}")
+                logger.warning("Error indexing %s: %s", skill_file, e)
         return count
 
     def _upsert_skill(self, skill: Skill):
