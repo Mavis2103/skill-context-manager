@@ -1,0 +1,8 @@
+"""Skill Context Manager (SCM) — Context-aware skill selection for AI agents."""
+
+from .db import init_schema
+
+__version__ = "0.2.0"
+
+# Initialize the shared database schema on first import
+init_schema()

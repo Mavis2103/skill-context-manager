@@ -1,0 +1,34 @@
+[project]
+name = "skill-context-manager"
+version = "0.1.0"
+description = "Context-aware skill selection for AI agents — solves 'too many skills' problem"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Mavis2103", email = "taquanvku@gmail.com"},
+]
+
+dependencies = [
+    # Core: no heavy deps — just Python stdlib + sqlite3
+]
+
+[project.optional-dependencies]
+full = [
+    "sentence-transformers>=3.0,<4.0",
+    "transformers>=4.40,<5.0",
+    "torch>=2.0,<3.0",
+]
+light = [
+    "sentence-transformers>=3.0,<4.0",
+]
+
+[project.scripts]
+scm = "scm.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"

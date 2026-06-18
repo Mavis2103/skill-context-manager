@@ -1,0 +1,13 @@
+# Core dependencies (slim mode — only BM25 + session tracking)
+scm-core>=0.1
+
+# Optional: embedding-based semantic search
+sentence-transformers>=3.0,<4.0
+
+# Optional: cross-encoder reranking
+transformers>=4.40,<5.0
+torch>=2.0,<3.0
+
+# For running with minimal deps, install just:
+# pip install scm-core
+# Semantic search and reranking require sentence-transformers + torch

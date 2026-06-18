@@ -1,0 +1,50 @@
+# Skill Context Manager — Default Configuration
+
+# ── Storage ────
+db_dir: ~/.scm/
+
+# ── Retrieval ──
+retrieval:
+  method: hybrid          # bm25 | embedding | hybrid
+  top_k_initial: 20       # Candidates before reranking
+  top_k_final: 5          # Final results
+  bm25_weight: 0.3        # BM25 contribution (hybrid mode)
+  embedding_weight: 0.7   # Embedding contribution (hybrid mode)
+
+# ── Reranking ──
+reranker:
+  enabled: true
+  model: cross-encoder/ms-marco-MiniLM-L6-v2
+  max_length: 512         # Max tokens per query+skill pair
+
+# ── Embedding ──
+embedding:
+  model: all-MiniLM-L6-v2  # 80MB, good CPU performance
+  device: cpu              # cpu | cuda
+  normalize: true
+
+# ── Session ───
+session:
+  auto_track: true         # Auto-start session on query
+  recent_boost: 0.5        # Score boost for recently used skills
+  max_recent_skills: 5     # How many recent skills to track
+
+# ── Feedback ──
+feedback:
+  collect: true            # Collect feedback for learning
+  query_patterns: true     # Learn query-to-skill mappings
+  apply_weights: true      # Apply learned weights to scores
+
+# ── Optimization ──
+optimize:
+  min_description_len: 20
+  max_description_len: 120
+  auto_compress: true
+  add_action_prefix: true
+  extract_tags: true
+
+# ── Output ────
+output:
+  default_format: text     # text | json
+  show_scores: true
+  show_token_cost: true
