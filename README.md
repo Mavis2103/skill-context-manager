@@ -271,7 +271,7 @@ SCM runs as an **MCP server** with **11 tools**, compatible with any MCP-compati
 
 ### Multi-Agent Setup Registry
 
-SCM v0.4.0 ships with a **single-command setup for 13 agent platforms**. Instead of manually
+SCM v0.5.0 ships with a **single-command setup for 13 agent platforms**. Instead of manually
 configuring each agent's MCP settings, run:
 
 ```bash
@@ -627,6 +627,7 @@ uv run pytest --cov=src/scm/ tests/
 - [x] **77 tests across all modules**
 - [x] **101 tests + 16 bug fixes** (v0.2.1)
 - [x] **Agent auto-detection** (v0.4.0 — `--all` = detected only, `--force-all` = all 13)
+- [x] **Package rename + install dir** (v0.5.0 — package → `scm`, dirs → `~/.scm/`)
 - [ ] GUI dashboard
 - [ ] Multi-agent session sharing
 
