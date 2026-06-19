@@ -74,7 +74,7 @@ The installer will:
 |------|-------------|
 | ✅ Pre-flight | Check Python 3.11+, install `uv` if needed |
 | ✅ Clone | `git clone --depth 1` to `~/Workspaces/skill-context-manager` |
-| ✅ Venv | `uv venv` + `uv pip install -e .` — zero-dependency core |
+| ✅ Venv | `uv venv` + `uv pip install -e .` — lightweight core (`mcp` + `PyYAML`) |
 | ✅ Symlink | `~/.local/bin/scm` — auto-PATH via profile.d + shell rc |
 | ✅ Index | Auto-index `~/.hermes/skills/`, `~/.claude/skills/`, `~/.cursor/skills/` |
 | ✅ Sanity | Smoke test + version check |
@@ -476,17 +476,19 @@ Then load the SKILL.md body of the top-matching skill.
 
 | Dependencies | Features Available |
 |-------------|-------------------|
-| **Python stdlib only** | BM25 (FTS5) + Session tracking + Feedback |
+| **Lightweight core** (`mcp` + `PyYAML`) | BM25 (FTS5) + Session tracking + Feedback + MCP server |
 | + `sentence-transformers` | Semantic embedding search |
 | + `transformers` + `torch` | Cross-encoder reranking |
 | + feedback data | Self-improving Bayesian weights |
 
-The zero-dependency core works immediately without installing anything extra. AI models are optional.
+The core has **no heavy/ML dependencies** — only `mcp` (the MCP SDK) and `PyYAML`. Retrieval
+runs on Python's stdlib `sqlite3` FTS5, so BM25 search, session tracking, and feedback all work
+without any AI models. The embedding and cross-encoder models are entirely optional.
 
 ## Comparison with Alternatives
 
-| Solution | Progressive Discovery | Semantic Search | Session Memory | Feedback Loop | Token Cost | Zero-Dep |
-|----------|---------------------|-----------------|----------------|---------------|------------|----------|
+| Solution | Progressive Discovery | Semantic Search | Session Memory | Feedback Loop | Token Cost | Light Core |
+|----------|---------------------|-----------------|----------------|---------------|------------|------------|
 | **Claude Code Skills** | ✅ Load on-demand | ❌ Keyword | ❌ No | ❌ No | ~500 tokens | ❌ |
 | **MCP Tool Search** | ✅ Deferred load | ✅ BM25 | ❌ No | ❌ No | ~500 tokens | ❌ |
 | **SkillRouter (CVPR)** | ❌ All at once | ✅ Cross-encoder | ❌ No | ✅ Yes | Training needed | ❌ GPU |
