@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from .db import connect, init_schema
 from .models import Skill
@@ -16,6 +16,28 @@ logger = logging.getLogger("scm.indexer")
 class SkillIndexer:
     """Index skills from filesystem into the shared SCM database."""
 
+    # Directory names to skip during recursive scan
+    DEFAULT_EXCLUDE = {
+        ".git", ".svn", ".hg",
+        ".venv", "venv", "env", ".env",
+        "__pycache__", ".mypy_cache", ".pytest_cache", ".ruff_cache",
+        "node_modules", ".next", ".turbo",
+        "dist", "build", ".build",
+        ".idea", ".vscode",
+        ".DS_Store",
+    }
+
+    # Common agent skill directories (relative to $HOME)
+    AGENT_SKILL_DIRS = [
+        ".hermes/skills",
+        ".claude/skills",
+        ".cursor/skills",
+        ".codeium/windsurf/skills",
+        ".codex/skills",
+        ".config/goose/skills",
+        ".continue/skills",
+    ]
+
     def __init__(self, db_path: Optional[Path] = None):
         self.db_path = db_path  # Kept for backward compat; None = use shared db
         init_schema(db_path)
@@ -23,21 +45,63 @@ class SkillIndexer:
     def _conn(self):
         return connect(self.db_path)
 
-    def index_directory(self, directory: Path, recursive: bool = True) -> int:
-        """Scan a directory for SKILL.md files and index them."""
+    @classmethod
+    def detect_skill_dirs(cls) -> list[Path]:
+        """Find all agent skill directories that exist on this system."""
+        home = Path.home()
+        return [home / p for p in cls.AGENT_SKILL_DIRS if (home / p).is_dir()]
+
+    def index_directory(
+        self,
+        directory: Path,
+        recursive: bool = True,
+        exclude: Optional[set[str]] = None,
+        progress_callback: Optional[Callable[[int, int], None]] = None,
+    ) -> int:
+        """Scan a directory for SKILL.md files and index them.
+
+        Skips hidden directories (names starting with '.') and common
+        development-noise directories (.git, node_modules, __pycache__, etc.)
+        to prevent accidental full-home scans.
+
+        Args:
+            directory: Root path to scan.
+            recursive: Whether to descend into subdirectories.
+            exclude: Extra basename patterns to skip (added to DEFAULT_EXCLUDE).
+            progress_callback: Optional fn(file_count, total_count) called periodically.
+        """
         if not directory.exists():
             logger.warning("Directory not found: %s", directory)
             return 0
 
+        exclude_set = set(SkillIndexer.DEFAULT_EXCLUDE) | (exclude or set())
+
+        if not recursive:
+            search: list[Path] = sorted(
+                p for p in directory.iterdir() if p.name == "SKILL.md"
+            )
+        else:
+            # Walk manually so we can filter out excluded/hidden paths
+            found: list[Path] = []
+            for path in directory.rglob("SKILL.md"):
+                # Check if any parent segment matches exclude set or starts with '.'
+                parts = path.relative_to(directory).parts[:-1]  # exclude the filename
+                if any(part in exclude_set or (part.startswith(".") and part not in SkillIndexer.DEFAULT_EXCLUDE) for part in parts):
+                    continue
+                found.append(path)
+            search = sorted(found)
+
         count = 0
-        pattern = "**/SKILL.md" if recursive else "SKILL.md"
-        for skill_file in sorted(directory.glob(pattern)):
+        total = len(search)
+        for i, skill_file in enumerate(search):
             try:
                 skill = Skill.from_skill_file(skill_file)
                 self._upsert_skill(skill)
                 count += 1
             except Exception as e:
                 logger.warning("Error indexing %s: %s", skill_file, e)
+            if progress_callback and (i % 50 == 0 or i == total - 1):
+                progress_callback(i + 1, total)
         return count
 
     def _upsert_skill(self, skill: Skill):

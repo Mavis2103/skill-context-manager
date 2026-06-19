@@ -5,6 +5,24 @@ All notable changes to **Skill Context Manager (SCM)** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-06-19 — Index Safety + Auto-Detect
+
+### Added
+- **Skip patterns during index** — `scm index` now skips hidden dirs (`.` prefix) and common noise dirs (`.git`, `node_modules`, `__pycache__`, `.venv`, `dist`, etc.) during recursive scanning. Prevents accidental full-home scans.
+- **Auto-detect agent skill dirs** — `scm index` without `--dir` (or with `--all`) auto-detects existing agent skill directories (`~/.hermes/skills/`, `~/.claude/skills/`, `~/.cursor/skills/`, etc.) and indexes all of them.
+- **Progress callback** — Shows `... scanned N/M` during long index operations.
+- **8 new tests** — skip patterns (hidden, noise, custom, non-recursive), auto-detect (found, empty), progress callback (with and without).
+
+### Changed
+- `SkillIndexer.index_directory()` now accepts `exclude` (extra skip patterns) and `progress_callback` params (backward-compatible).
+- `SkillIndexer.DEFAULT_EXCLUDE` — class-level set of directory names to skip.
+- `SkillIndexer.detect_skill_dirs()` — static method returning existing agent skill dirs.
+- `SkillIndexer.AGENT_SKILL_DIRS` — list of known agent skill paths (relative to `$HOME`).
+- Version bumped to **0.6.0**.
+- Test suite: 127 → **135 tests** (all passing).
+
+---
+
 ## [0.5.0] - 2026-06-19 — Install Dir Relocation + Package Rename
 
 ### Changed
@@ -224,6 +242,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 || Version | Date       | Type   | Highlights |
 ||---------|-----------|--------|------------|
+|| 0.6.0   | 2026-06-19 | Minor  | Index safety (skip hidden/noise dirs), auto-detect skill dirs, progress |
 || 0.5.0   | 2026-06-19 | Minor  | Install dir ~/.scm/, DB under ~/.scm/db/, package rename to scm |
 || 0.4.0   | 2026-06-19 | Minor  | Agent auto-detection, install.sh fixes, `--all`/`--force-all` split |
 || 0.3.1   | 2026-06-19 | Patch  | Zed config fix, ruff lint fixes, expanded skill dirs |
@@ -232,7 +251,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 || 0.2.1   | 2026-06-18 | Patch  | 16 bug fixes, 24 regression tests |
 || 0.2.0   | 2026-06-18 | Minor  | Initial public release, MCP server |
 
-[Unreleased]: https://github.com/Mavis2103/skill-context-manager/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/Mavis2103/skill-context-manager/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/Mavis2103/skill-context-manager/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Mavis2103/skill-context-manager/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Mavis2103/skill-context-manager/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/Mavis2103/skill-context-manager/compare/v0.3.0...v0.3.1

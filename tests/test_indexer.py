@@ -138,3 +138,88 @@ Updated body
         with sqlite3.connect(str(indexer.db_path)) as conn:
             journal_mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
             assert journal_mode == "wal"
+
+    # ── New tests: skip patterns ──────────────────────────────────────
+
+    def test_index_skips_hidden_dirs(self, indexer, tmp_path):
+        """SKILL.md inside a hidden dir (starting with '.') should be skipped."""
+        hidden = tmp_path / ".git"
+        hidden.mkdir()
+        (hidden / "SKILL.md").write_text("---\nname: should-skip\n---\nbody")
+
+        (tmp_path / "SKILL.md").write_text("---\nname: valid\n---\nbody")
+
+        count = indexer.index_directory(tmp_path, recursive=True)
+        assert count == 1  # only 'valid', not the one in .git/
+
+    def test_index_skips_noise_dirs(self, indexer, tmp_path):
+        """SKILL.md inside known noise dirs should be skipped."""
+        for d in [".venv", "node_modules", "__pycache__", ".pytest_cache"]:
+            (tmp_path / d).mkdir()
+            ((tmp_path / d) / "SKILL.md").write_text(f"---\nname: {d}\n---\nbody")
+
+        (tmp_path / "SKILL.md").write_text("---\nname: real-skill\n---\nbody")
+        ok_dir = tmp_path / "my-skills"
+        ok_dir.mkdir()
+        (ok_dir / "SKILL.md").write_text("---\nname: second-skill\n---\nbody")
+
+        count = indexer.index_directory(tmp_path, recursive=True)
+        assert count == 2  # 'real-skill' + 'second-skill'
+
+    def test_index_skips_custom_exclude(self, indexer, tmp_path):
+        """Extra exclude patterns passed by caller are respected."""
+        junk = tmp_path / "old-stuff"
+        junk.mkdir()
+        (junk / "SKILL.md").write_text("---\nname: skip-me\n---\nbody")
+
+        (tmp_path / "SKILL.md").write_text("---\nname: keep\n---\nbody")
+
+        count = indexer.index_directory(tmp_path, recursive=True, exclude={"old-stuff"})
+        assert count == 1
+
+    def test_index_non_recursive_ignores_hidden(self, indexer, tmp_path):
+        """Non-recursive scan should still index files in root even if subdirs are hidden."""
+        hidden = tmp_path / ".git"
+        hidden.mkdir()
+        (hidden / "SKILL.md").write_text("---\nname: skip\n---\nbody")
+
+        (tmp_path / "SKILL.md").write_text("---\nname: root-skill\n---\nbody")
+
+        count = indexer.index_directory(tmp_path, recursive=False)
+        assert count == 1
+
+    # ── New tests: auto-detect ────────────────────────────────────────
+
+    def test_detect_skill_dirs_finds_common(self, tmp_path, monkeypatch):
+        """detect_skill_dirs finds existing agent skill directories."""
+        hermes = tmp_path / ".hermes" / "skills"
+        hermes.mkdir(parents=True)
+        (hermes / "SKILL.md").write_text("---\nname: test\n---\nbody")
+
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        dirs = SkillIndexer.detect_skill_dirs()
+        assert hermes in dirs
+
+    def test_detect_skill_dirs_returns_empty_when_none_exist(self, tmp_path, monkeypatch):
+        """detect_skill_dirs returns empty list when no agent dirs exist."""
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        dirs = SkillIndexer.detect_skill_dirs()
+        assert dirs == []
+
+    # ── New tests: progress callback ──────────────────────────────────
+
+    def test_index_calls_progress_callback(self, indexer, skill_dir):
+        """Progress callback is called during indexing."""
+        calls = []
+        def cb(count, total):
+            calls.append((count, total))
+
+        indexer.index_directory(skill_dir, progress_callback=cb)
+        assert len(calls) >= 1
+        # Last call should report total == count
+        assert calls[-1][0] == calls[-1][1] == 3
+
+    def test_index_without_callback_still_works(self, indexer, skill_dir):
+        """index_directory works when progress_callback is None (default)."""
+        count = indexer.index_directory(skill_dir)
+        assert count == 3

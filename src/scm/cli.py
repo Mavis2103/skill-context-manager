@@ -38,9 +38,11 @@ Examples:
     sub = parser.add_subparsers(dest="command", required=True)
 
     # ── index ──
-    p_index = sub.add_parser("index", help="Index skills from a directory")
-    p_index.add_argument("--dir", type=str, default=".",
-                         help="Directory containing skills (default: .)")
+    p_index = sub.add_parser("index", help="Index skills from directories")
+    p_index.add_argument("--dir", type=str, default=None,
+                         help="Directory containing skills (default: auto-detect agent dirs)")
+    p_index.add_argument("--all", action="store_true",
+                         help="Index all known agent skill directories")
     p_index.add_argument("--recursive", action="store_true", default=True,
                          help="Scan subdirectories (default: true)")
     p_index.add_argument("--no-recursive", dest="recursive", action="store_false",
@@ -167,14 +169,37 @@ def cli():
 # ── Commands ─────────────────────────────────────────────────────
 
 def cmd_index(args):
-    directory = Path(args.dir)
-    print(f"📂 Scanning {directory} for skills...")
-
     indexer = SkillIndexer()
-    count = indexer.index_directory(directory, recursive=args.recursive)
-    stats = indexer.stats()
 
-    print(f"✅ Indexed {count} skills")
+    # Determine which directories to scan
+    if args.dir:
+        directories: list[Path] = [Path(args.dir)]
+    elif args.all or args.dir is None:
+        directories = SkillIndexer.detect_skill_dirs()
+        if not directories:
+            print("No agent skill directories found. Use --dir to specify one.")
+            return
+    else:
+        directories = [Path(".")]
+
+    total_count = 0
+    for directory in directories:
+        print(f"📂 Scanning {directory} for skills...")
+
+        def show_progress(count, total):
+            if count < total:
+                print(f"   ... scanned {count}/{total}", end="\r", flush=True)
+
+        count = indexer.index_directory(
+            directory,
+            recursive=args.recursive,
+            progress_callback=show_progress,
+        )
+        total_count += count
+
+    if total_count:
+        print(f"\n✅ Indexed {total_count} skill files")
+    stats = indexer.stats()
     print(f"📊 Total: {stats['total_skills']} skills | {stats['total_tokens_metadata']} meta tokens | "
           f"{stats['total_tokens_body']} body tokens")
     if stats['categories']:
