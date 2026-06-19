@@ -5,9 +5,30 @@ All notable changes to **Skill Context Manager (SCM)** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.6.2] - 2026-06-19 — Graceful YAML Frontmatter Parsing
+## [0.7.0] - 2026-06-19 — BGE Embedding + Adaptive Retrieval + Knowledge Graph
+
+### Added
+- **BGE-base embedding model** — replaces default `SentenceTransformer`'s model with `BAAI/bge-base-en-v1.5`. Supports ONNX int8 quantization for ~2x faster inference. Auto-download via `python3 scripts/download-embedding-model.py`.
+- **RRF fusion** (`--method rrf`, now default) — Reciprocal Rank Fusion replaces weighted hybrid. No score normalization needed; combines BM25 + embedding ranks directly. SIGIR-recommended `k=60` parameter.
+- **Adaptive retrieval** (`skill_query_adaptive` MCP tool) — elbow detection (`detect_elbow()`) auto-selects `k` instead of hardcoded top-5. DBSCAN clustering (`SkillClusterer`) for diverse mode that avoids variant pollution.
+- **Knowledge graph** (`SkillGraph`) — 3 edge types: co-occurrence (skills used in same session), transition (sequential usage), content similarity (embedding cosine > 0.8). Personalized PageRank for session-aware boosting.
+- **LambdaMART LTR scaffolding** (`src/scm/ltr.py`, `scripts/train-ltr.py`) — 25 features extracted (retrieval scores, rank, text stats, feedback signals). Ready for training with ~100+ feedback records.
+
+### Changed
+- `src/scm/retriever.py` — embedding model loading now searches local cache (`~/.scm/models/bge-base`) before HF hub; ONNX auto-detects with `file_name="model_quantized.onnx"`; `_embedding_search_inner` SELECT includes `body` column (fixes `IndexError: No item with that key`).
+- `scripts/download-embedding-model.py` — uses `datasets.Dataset` for calibration, `quantizer.fit()` before `quantize()` for proper ONNX export pipeline.
+- Default search method: `hybrid` → `rrf` (RRF fusion).
+- Test suite: 136 → **168 tests** (all passing).
+- Version bumped to **0.7.0**.
 
 ### Fixed
+- **Embedding search crash** (`IndexError: No item with that key`) — `_embedding_search_inner` SELECT query was missing the `body` column; `Skill.row_to_skill` crashed accessing `row["body"]`.
+- **Model cache miss** — `_load_embedding_model` now searches `~/.scm/models/bge-base` before falling back to HF hub download.
+- **ONNX export** — `AutoCalibrationConfig.minmax` now passes proper `Dataset` (not raw tensors); `quantize()` uses `save_dir` + `calibration_tensors_range` (correct optimal API).
+
+---
+
+## [0.6.2] - 2026-06-19 — Graceful YAML Frontmatter Parsing
 - **Unquoted colons in YAML frontmatter** — `yaml.safe_load` now falls back to the naive parser when it fails (previously crashed and skipped the skill). Skills with descriptions like `"a skill to: create a page"` no longer error out during `scm index`.
 
 ### Added

@@ -19,7 +19,18 @@ class TestSkillReranker:
             QueryResult(skill=Skill(name="a", description="first"), score=0.9, retrieval_method="bm25"),
             QueryResult(skill=Skill(name="b", description="second"), score=0.5, retrieval_method="bm25"),
         ]
-        results = reranker.rerank("test query", skills, top_k=5)
+        # Patch transformers import to simulate missing package
+        import builtins
+        from unittest.mock import patch
+        original_import = builtins.__import__
+
+        def mock_import(name, *args, **kwargs):
+            if name == 'transformers':
+                raise ImportError("No module named 'transformers'")
+            return original_import(name, *args, **kwargs)
+
+        with patch.object(builtins, '__import__', mock_import):
+            results = reranker.rerank("test query", skills, top_k=5)
         # Falls back to input ordering
         assert len(results) == 2
         assert results[0].skill.name == "a"

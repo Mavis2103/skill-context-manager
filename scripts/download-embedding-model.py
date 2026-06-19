@@ -28,9 +28,12 @@ def export_onnx(model_path: Path):
     print("🔧 Exporting to ONNX...")
     try:
         from optimum.onnxruntime import ORTModelForFeatureExtraction, ORTQuantizer
-        from optimum.onnxruntime.configuration import AutoCalibrationConfig
+        from optimum.onnxruntime.configuration import (
+            AutoCalibrationConfig,
+            AutoQuantizationConfig,
+        )
         from transformers import AutoTokenizer
-        import numpy as np
+        from datasets import Dataset
     except ImportError as e:
         print(f"⚠️  optimum[onnxruntime] not installed: {e}")
         print("   Falling back to PyTorch model (slower but works)")
@@ -50,7 +53,7 @@ def export_onnx(model_path: Path):
     # Quantize to int8
     quantizer = ORTQuantizer.from_pretrained(ort_model)
 
-    # Calibration with sample texts
+    # Calibration with sample texts as a Dataset
     calibration_texts = [
         "deploy application to kubernetes",
         "monitoring alerting pagerduty",
@@ -61,15 +64,30 @@ def export_onnx(model_path: Path):
         "unit test python pytest",
         "terraform infrastructure as code",
     ]
-    calibration_dataset = [
-        tokenizer(t, return_tensors="pt") for t in calibration_texts
-    ]
+    calibration_dataset = Dataset.from_dict({"text": calibration_texts})
+
+    def preprocess(batch):
+        return tokenizer(batch["text"], padding="max_length", truncation=True, max_length=128)
+
+    calibration_dataset = calibration_dataset.map(preprocess, batched=True)
+    # Remove raw text — ONNX model expects input_ids, attention_mask, not "text"
+    calibration_dataset = calibration_dataset.remove_columns(["text"])
+    # Set format to torch tensors for ONNX runtime
+    calibration_dataset.set_format("torch", columns=["input_ids", "attention_mask", "token_type_ids"])
     calibration_config = AutoCalibrationConfig.minmax(calibration_dataset)
 
-    quantizer.quantize(
-        save_directory=str(onnx_path),
+    # Step 1: Fit — compute calibration ranges
+    calibration_tensors_range = quantizer.fit(
+        dataset=calibration_dataset,
         calibration_config=calibration_config,
-        quantization_config={"per_channel": True},
+    )
+
+    # Step 2: Quantize — apply int8 quantization
+    qconfig = AutoQuantizationConfig.arm64(is_static=True, per_channel=True)
+    quantizer.quantize(
+        save_dir=str(onnx_path),
+        quantization_config=qconfig,
+        calibration_tensors_range=calibration_tensors_range,
     )
     print(f"✅ ONNX int8 model saved to {onnx_path}")
     return onnx_path

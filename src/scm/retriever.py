@@ -169,7 +169,8 @@ class SkillRetriever:
                 onnx_path = Path.home() / ".scm" / "models" / "bge-base-int8-onnx"
                 if onnx_path.exists():
                     self._embedding_model = ORTModelForFeatureExtraction.from_pretrained(
-                        str(onnx_path), provider="CPUExecutionProvider"
+                        str(onnx_path), provider="CPUExecutionProvider",
+                        file_name="model_quantized.onnx",
                     )
                     self._emb_tokenizer = AutoTokenizer.from_pretrained(self._model_name)
                     self._emb_mode = "onnx"
@@ -183,7 +184,17 @@ class SkillRetriever:
         # Fallback: sentence-transformers
         try:
             from sentence_transformers import SentenceTransformer
-            self._embedding_model = SentenceTransformer(self._model_name, device='cpu')
+
+            # Try local cache first
+            local_model_path = Path.home() / ".scm" / "models" / "bge-base"
+            model_source = (
+                str(local_model_path) if local_model_path.exists()
+                else self._model_name
+            )
+            self._embedding_model = SentenceTransformer(
+                model_source, device='cpu',
+                cache_folder=str(Path.home() / ".scm" / "models"),
+            )
             self._emb_mode = "sentence_tr"
             logger.info("Loaded sentence-transformers model: %s", self._model_name)
         except ImportError:
@@ -243,6 +254,7 @@ class SkillRetriever:
             return []
         try:
             self._load_embedding_model()
+            logger.debug("Embedding model loaded, mode=%s", self._emb_mode)
             if self._embedding_model is None:
                 logger.info("No embedding model available, falling back to BM25")
                 return self.bm25_search(query, top_k)
@@ -258,15 +270,20 @@ class SkillRetriever:
         """Actual embedding search with memory-efficient loading + caching."""
         import numpy as np
 
+        logger.debug("Encoding query...")
         query_emb = self._encode_query(query)
+        logger.debug("Query encoded, shape=%s", query_emb.shape)
 
         with self._conn() as conn:
+            logger.debug("Fetching skill rows...")
             rows = conn.execute("""
-                SELECT name, description, SUBSTR(body, 1, 512) as body_snippet,
+                SELECT name, description, body,
+                       SUBSTR(body, 1, 512) as body_snippet,
                        path, category, tags, token_cost_meta, token_cost_body,
                        use_count, success_rate, last_used, embedding
                 FROM skills
             """).fetchall()
+            logger.debug("Fetched %d skill rows", len(rows))
 
         results = []
         skills_to_cache: list[tuple[str, bytes]] = []

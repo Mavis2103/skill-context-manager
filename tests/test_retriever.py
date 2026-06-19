@@ -84,8 +84,10 @@ class TestRetriever:
         # pg-backup should be top result
         assert results[0].skill.name == "pg-backup"
 
-    def test_hybrid_empty_result(self, indexed_skills):
-        results = indexed_skills.hybrid_search("xyznonexistent", top_k=3)
+    def test_bm25_empty_result(self, indexed_skills):
+        """BM25 (lexical) returns empty for non-matching queries; embedding always
+        returns nearest neighbors — that's expected dense retrieval behavior."""
+        results = indexed_skills.bm25_search("xyznonexistent", top_k=3)
         assert len(results) == 0
 
     def test_session_boost(self, indexed_skills):
@@ -120,14 +122,16 @@ class TestRetriever:
             assert len(results) == 0
 
     def test_embedding_fallback_when_model_missing(self, indexed_skills):
-        """Embedding_search falls back to BM25 when no model available."""
-        # Force no embedding model
-        indexed_skills._embedding_model = None
-        indexed_skills._emb_mode = None
-        results = indexed_skills.embedding_search("kubernetes deploy", top_k=3)
-        assert len(results) >= 1
-        # Results should come from BM25 fallback
-        assert any(r.retrieval_method in ("bm25", "like") for r in results)
+        """Embedding_search falls back to BM25 when model fails."""
+        from unittest.mock import patch
+
+        # Simulate failure in _embedding_search_inner
+        with patch.object(indexed_skills, '_embedding_search_inner',
+                          side_effect=RuntimeError("Model failure")):
+            results = indexed_skills.embedding_search("kubernetes deploy", top_k=3)
+            assert len(results) >= 1
+            # Should fall back to BM25
+            assert any(r.retrieval_method in ("bm25", "like") for r in results)
 
     def test_rrf_fusion_returns_diverse_results(self, indexed_skills):
         """RRF combines BM25 + embedding results."""

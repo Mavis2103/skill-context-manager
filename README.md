@@ -7,8 +7,8 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![SQLite FTS5](https://img.shields.io/badge/search-BM25%20%2B%20Embedding%20%2B%20Cross--encoder-green)](https://sqlite.org/fts5.html)
 [![MCP](https://img.shields.io/badge/MCP-Server%20Ready-purple)](https://modelcontextprotocol.io)
-[![Version](https://img.shields.io/badge/version-0.6.2-orange)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-136%20%E2%9C%94%EF%B8%8F-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-0.7.0-orange)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-168%20%E2%9C%94%EF%B8%8F-brightgreen)]()
 
 ---
 
@@ -532,7 +532,9 @@ skill-context-manager/
 ├── tests/
 │   ├── test_models.py       # 14 tests — data models + YAML parsing + unquoted colon
 │   ├── test_indexer.py      # 19 tests — index/reindex/skip/detect/progress/WAL
-│   ├── test_retriever.py    # 9 tests — BM25/hybrid/session boost/empty
+│   ├── test_retriever.py    # 10 tests — BM25/embedding/RRF/hybrid/session/graph boost/empty
+│   ├── test_adaptive.py     # 20 tests — elbow detection/DBSCAN clustering/diverse/adaptive query
+│   ├── test_graph.py        # 7 tests — graph edges/PPR/graph boost
 │   ├── test_session_feedback.py  # 21 tests — session lifecycle + feedback
 │   ├── test_optimizer.py    # 9 tests — compression/expansion/info-leak
 │   ├── test_tracker.py      # 8 tests — recording/insights/daily-trend
@@ -600,7 +602,7 @@ scm session context --id "..." --query "scale deployment"
 ### Run Tests
 
 ```bash
-# All 135 tests
+# All 168 tests
 uv run pytest -v
 
 # Specific module
