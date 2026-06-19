@@ -19,7 +19,9 @@ class SkillRetriever:
     """Retrieve relevant skills using BM25, embedding similarity, or hybrid search."""
 
     # Default model — override via env or config
-    DEFAULT_EMBEDDING_MODEL = "BAAI/bge-base-en-v1.5"
+    DEFAULT_EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+    # INSTRUCTIONS: To switch back to BGE-base, change the line above to
+    # "BAAI/bge-base-en-v1.5" and clear cached embeddings from DB.
 
     def __init__(self, db_path: Optional[Path] = None,
                  embedding_model: Optional[str] = None,
@@ -188,7 +190,7 @@ class SkillRetriever:
             from sentence_transformers import SentenceTransformer
 
             # Try local cache first
-            local_model_path = Path.home() / ".scm" / "models" / "bge-base"
+            local_model_path = Path.home() / ".scm" / "models" / self._model_name.split("/")[-1]
             model_source = (
                 str(local_model_path) if local_model_path.exists()
                 else self._model_name
