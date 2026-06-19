@@ -65,11 +65,13 @@ Three install levels — pick one:
 uv tool install git+https://github.com/Mavis2103/skill-context-manager
 
 # Level 2: + Embedding search with all-MiniLM-L6-v2 (recommended)
-uv tool install git+https://github.com/Mavis2103/skill-context-manager[light]
+uv tool install 'git+https://github.com/Mavis2103/skill-context-manager[light]'
 
 # Level 3: + Full reranker (cross-encoder) for best accuracy
-uv tool install git+https://github.com/Mavis2103/skill-context-manager[full]
+uv tool install 'git+https://github.com/Mavis2103/skill-context-manager[full]'
 ```
+
+> **Note:** If using zsh, quote the URL (`'...'`) to prevent `[light]` being interpreted as a glob pattern.
 
 Then verify and set up:
 
@@ -84,7 +86,8 @@ scm index --dir ~/.hermes/skills/
 ### Update
 
 ```bash
-uv tool upgrade scm
+# Reinstall from GitHub to get latest (keeps same extra: light/full if any)
+uv tool install --reinstall 'git+https://github.com/Mavis2103/skill-context-manager[light]'
 ```
 
 ### Uninstall
