@@ -54,68 +54,47 @@ SCM is a **proxy layer** between the agent and the skill directory. Instead of l
 - **Python 3.11+**
 - **uv** (Astral) — auto-installed if missing
 
-### One-Click Install (recommended)
+### Install
+
+**Prerequisites:** Python 3.11+ and [uv](https://docs.astral.sh/uv/) (auto-installed if missing).
 
 ```bash
-# Quick install via uv tool (no clone, ~3 seconds)
-curl -fsSL https://raw.githubusercontent.com/Mavis2103/skill-context-manager/main/scripts/install.sh | bash
+# Install SCM globally (one command, ~3 seconds)
+uv tool install git+https://github.com/Mavis2103/skill-context-manager
 
-# With MCP auto-setup (configures all 13 supported agent platforms)
-curl -fsSL https://raw.githubusercontent.com/Mavis2103/skill-context-manager/main/scripts/install.sh | bash -s -- --with-mcp
+# Verify
+scm --version
 
-# Dev mode (clone repo + editable install, for contributors)
-curl -fsSL ... | bash -s -- --dev --scm-dir ~/custom/path
-```
+# MCP auto-setup (recommended) — configures all 13 agent platforms
+scm mcp setup --all
 
-The installer will:
-
-| Step | What happens |
-|------|-------------|
-| ✅ Pre-flight | Check Python 3.11+, install `uv` if needed |
-| ✅ Install | `uv tool install scm` from GitHub — no clone, no venv, no symlink |
-| ✅ Index | Auto-index skill dirs (`~/.hermes/skills/`, `~/.claude/skills/`, `~/.cursor/skills/`, and any custom path)|
-| ✅ Sanity | Smoke test + version check |
-
-### Dev Install (clone + editable)
-
-For contributors who want to modify SCM source:
-
-```bash
-git clone https://github.com/Mavis2103/skill-context-manager.git
-cd skill-context-manager
-uv venv
-source .venv/bin/activate
-uv pip install -e .
-
-# Optional: AI models for embedding search and reranking
-uv pip install scm[full]
-
-# Index common skill directories
+# Index your skill directories
 scm index --dir ~/.hermes/skills/
-
-# Add to PATH
-echo 'export PATH="$PATH:'$(pwd)'/.venv/bin"' >> ~/.bashrc
-source ~/.bashrc
 ```
-
-Or use the installer with `--dev`:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Mavis2103/skill-context-manager/main/scripts/install.sh | bash -s -- --dev
-```
-
-### Uninstall
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Mavis2103/skill-context-manager/main/scripts/install.sh | bash -s -- --uninstall
-```
-
-Removes: uv tool, database, MCP configs, dev clone (if applicable).
 
 ### Update
 
 ```bash
 uv tool upgrade scm
+```
+
+### Uninstall
+
+```bash
+scm mcp setup --force-all --uninstall   # clean MCP configs first
+uv tool uninstall scm                   # remove tool + venv
+rm -rf ~/.scm                           # remove database
+```
+### Dev Install (for contributors)
+
+```bash
+git clone https://github.com/Mavis2103/skill-context-manager.git
+cd skill-context-manager
+uv venv && source .venv/bin/activate
+uv pip install -e .
+
+# Optional: AI models for embedding search and reranking
+uv pip install scm[full]
 ```
 
 ## Features
@@ -535,7 +514,6 @@ skill-context-manager/
 │   ├── test_mcp_setup.py    # 26 tests — multi-agent registry (13 platforms)
 │   └── test_regression.py   # 24 tests — bug regression coverage
 ├── scripts/
-│   ├── install.sh           # One-click install
 │   ├── benchmark.sh         # Performance benchmark
 │   └── demo.sh              # Interactive demo
 ├── configs/
