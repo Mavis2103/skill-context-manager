@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 import sqlite3
 from pathlib import Path
@@ -28,10 +29,11 @@ class SkillRetriever:
         self._emb_tokenizer = None
         self._emb_mode: Optional[str] = None  # "onnx", "sentence_tr", None
         self._model_name = embedding_model or self.DEFAULT_EMBEDDING_MODEL
-        # Auto-detect ONNX: prefer ONNX if model files exist
+        # Auto-detect ONNX: prefer PyTorch by default (ONNX int8 quantization
+        # can degrade BERT embeddings to near-identical vectors on some models).
+        # Set SCM_USE_ONNX=1 to force ONNX despite quality risk.
         if use_onnx is None:
-            onnx_path = Path.home() / ".scm" / "models" / "bge-base-int8-onnx"
-            self._use_onnx = onnx_path.exists()
+            self._use_onnx = os.environ.get("SCM_USE_ONNX") == "1"
         else:
             self._use_onnx = use_onnx
         init_schema(db_path)
