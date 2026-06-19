@@ -5,6 +5,20 @@ All notable changes to **Skill Context Manager (SCM)** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-06-19 — Bug Fix Patch
+
+### Fixed
+- **Zed config structure** — `mcp_setup.py` was generating nested `{"path": ..., "args": ...}` under `command`, but Zed expects flat `command`/`args` fields per [Zed MCP docs](https://zed.dev/docs/ai/mcp). Fixed to emit correct flat structure.
+- **Zed config test** — Updated `test_mcp_setup.py` assertion to match the flat `command`/`args` format.
+- **Ruff lint issues** — Fixed minor lint warnings across `cli.py`, `mcp_server.py`, `feedback.py`, `optimizer.py`, `reranker.py`, `retriever.py` (unused imports, naming convention).
+- **`scripts/install.sh` skill dirs** — Expanded available skill directories for Hermes Agent integration.
+
+### Changed
+- Version bumped to **0.3.1** (patch release).
+- **README.md** — Updated SkillRouter reference to arXiv preprint with permanent link, improved Anthropic eval accuracy numbers, corrected SKillRouter table label from "CVPR" to "arXiv".
+
+---
+
 ## [0.3.0] - 2026-06-19 — Multi-Agent MCP Setup Registry
 
 ### Added
@@ -154,12 +168,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 || Version | Date       | Type   | Highlights |
 ||---------|-----------|--------|------------|
+|| 0.3.1   | 2026-06-19 | Patch  | Zed config fix, ruff lint fixes, expanded skill dirs |
 || 0.3.0   | 2026-06-19 | Minor  | Multi-agent MCP setup registry, 13 platforms, bug fixes |
 || 0.2.2   | 2026-06-18 | Minor  | scm mcp setup CLI, uv-first install, README restructured |
 || 0.2.1   | 2026-06-18 | Patch  | 16 bug fixes, 24 regression tests |
 || 0.2.0   | 2026-06-18 | Minor  | Initial public release, MCP server |
 
-|[Unreleased]: https://github.com/Mavis2103/skill-context-manager/compare/v0.3.0...HEAD
-|[0.3.0]: https://github.com/Mavis2103/skill-context-manager/compare/v0.2.2...v0.3.0
+[Unreleased]: https://github.com/Mavis2103/skill-context-manager/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/Mavis2103/skill-context-manager/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/Mavis2103/skill-context-manager/compare/v0.2.2...v0.3.0
 [0.2.1]: https://github.com/Mavis2103/skill-context-manager/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Mavis2103/skill-context-manager/releases/tag/v0.2.0
