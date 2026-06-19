@@ -41,3 +41,4 @@ scripts/gen-bench-skills.py
 
 # Hermes Agent plans
 .hermes/
+augmented_model.onnx
