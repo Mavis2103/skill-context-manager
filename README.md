@@ -7,7 +7,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![SQLite FTS5](https://img.shields.io/badge/search-BM25%20%2B%20Embedding%20%2B%20Cross--encoder-green)](https://sqlite.org/fts5.html)
 [![MCP](https://img.shields.io/badge/MCP-Server%20Ready-purple)](https://modelcontextprotocol.io)
-[![Version](https://img.shields.io/badge/version-0.7.0-orange)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.7.1-orange)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-168%20%E2%9C%94%EF%B8%8F-brightgreen)]()
 
 ---
@@ -58,20 +58,26 @@ SCM is a **proxy layer** between the agent and the skill directory. Instead of l
 
 **Prerequisites:** Python 3.11+ and [uv](https://docs.astral.sh/uv/) (auto-installed if missing).
 
+Three install levels — pick one:
+
 ```bash
-# Install SCM globally (one command, ~3 seconds)
+# Level 1: BM25 only (fast, 0 AI deps, works everywhere)
 uv tool install git+https://github.com/Mavis2103/skill-context-manager
 
-# Verify
+# Level 2: + Embedding search with all-MiniLM-L6-v2 (recommended)
+uv tool install git+https://github.com/Mavis2103/skill-context-manager[light]
+
+# Level 3: + Full reranker (cross-encoder) for best accuracy
+uv tool install git+https://github.com/Mavis2103/skill-context-manager[full]
+```
+
+Then verify and set up:
+
+```bash
 scm --version
-
-# MCP auto-setup (recommended) — configures all 13 agent platforms
-scm mcp setup --all
-
-# Index — auto-detect agent skill directories
-scm index
-
-# Or scan specific directory safely (skips .git/, node_modules/, .venv/, ...)
+scm mcp setup --all                 # MCP config for all 13 agent platforms
+scm index                           # auto-detect skill dirs
+# Or point at a specific directory:
 scm index --dir ~/.hermes/skills/
 ```
 
@@ -94,10 +100,9 @@ rm -rf ~/.scm                           # remove database
 git clone https://github.com/Mavis2103/skill-context-manager.git
 cd skill-context-manager
 uv venv && source .venv/bin/activate
-uv pip install -e .
-
-# Optional: AI models for embedding search and reranking
-uv pip install scm[full]
+uv pip install -e .              # BM25 only
+uv pip install -e ".[light]"     # + embedding (all-MiniLM-L6-v2)
+uv pip install -e ".[full]"      # + reranker
 ```
 
 ## Features
