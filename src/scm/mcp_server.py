@@ -77,7 +77,7 @@ def create_mcp_server() -> "FastMCP":  # noqa: F821 — lazy import inside fn bo
         Args:
             query: Task description (e.g. "deploy app to kubernetes")
             top_k: Number of results (default: 5)
-            method: Search method — "bm25", "embedding", or "hybrid" (default)
+            method: Search method — "bm25", "embedding", "hybrid", or "rrf" (default)
             session_id: Optional session ID for session-aware boosting
             use_reranker: Whether to use cross-encoder reranking (default: true)
         """
@@ -91,6 +91,8 @@ def create_mcp_server() -> "FastMCP":  # noqa: F821 — lazy import inside fn bo
             results = retriever.bm25_search(query, top_k=top_k * 4)
         elif method == "embedding":
             results = retriever.embedding_search(query, top_k=top_k * 4)
+        elif method == "rrf":
+            results = retriever.rrf_search(query, top_k=top_k * 4)
         else:
             results = retriever.hybrid_search(query, top_k=top_k * 4)
 

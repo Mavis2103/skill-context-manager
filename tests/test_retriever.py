@@ -128,3 +128,29 @@ class TestRetriever:
         assert len(results) >= 1
         # Results should come from BM25 fallback
         assert any(r.retrieval_method in ("bm25", "like") for r in results)
+
+    def test_rrf_fusion_returns_diverse_results(self, indexed_skills):
+        """RRF combines BM25 + embedding results."""
+        results = indexed_skills.rrf_search("deploy kubernetes", top_k=5)
+        assert len(results) > 0
+        assert all(r.retrieval_method == "rrf" for r in results)
+        # Scores should be positive
+        assert all(r.score > 0 for r in results)
+
+    def test_rrf_empty_query(self, indexed_skills):
+        """Empty query returns empty list."""
+        results = indexed_skills.rrf_search("", top_k=5)
+        assert results == []
+
+    def test_rrf_with_single_method_fallback(self, indexed_skills):
+        """If embedding fails, RRF should still return BM25 results."""
+        indexed_skills._embedding_model = None
+        indexed_skills._emb_mode = None
+        results = indexed_skills.rrf_search("test", top_k=5)
+        assert len(results) > 0
+
+    def test_rrf_respects_top_k(self, indexed_skills):
+        """RRF returns at most top_k results."""
+        for k in [1, 3, 10]:
+            results = indexed_skills.rrf_search("database", top_k=k)
+            assert len(results) <= k

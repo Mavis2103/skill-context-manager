@@ -301,6 +301,46 @@ class SkillRetriever:
         results.sort(key=lambda r: r.score, reverse=True)
         return results[:top_k]
 
+    # ── RRF Fusion ────────────────────────────────────────────────────
+
+    def rrf_search(self, query: str, top_k: int = 20, k: float = 60.0) -> list[QueryResult]:
+        """Reciprocal Rank Fusion of BM25 + embedding results.
+
+        RRF scores: 1/(k + rank) per list, summed across lists.
+        k=60 recommended by SIGIR papers for robust fusion.
+        No score normalization needed — works across arbitrary scoring scales.
+        """
+        from collections import defaultdict
+
+        query = (query or "").strip()
+        if not query:
+            return []
+
+        bm25_results = self.bm25_search(query, top_k=top_k * 2)
+        embed_results = self.embedding_search(query, top_k=top_k * 2)
+
+        rrf_scores = defaultdict(float)
+        seen = {}
+
+        for rank, r in enumerate(bm25_results, 1):
+            rrf_scores[r.skill.name] += 1.0 / (k + rank)
+            seen[r.skill.name] = r
+
+        for rank, r in enumerate(embed_results, 1):
+            rrf_scores[r.skill.name] += 1.0 / (k + rank)
+            if r.skill.name not in seen:
+                seen[r.skill.name] = r
+
+        fused = []
+        for name, score in sorted(rrf_scores.items(), key=lambda x: -x[1]):
+            fused.append(QueryResult(
+                skill=seen[name].skill,
+                score=round(score, 4),
+                retrieval_method="rrf",
+            ))
+
+        return fused[:top_k]
+
     # ── Hybrid search ────────────────────────────────────────────────
 
     def hybrid_search(self, query: str, top_k: int = 20,

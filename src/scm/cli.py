@@ -53,8 +53,8 @@ Examples:
     p_query.add_argument("query", nargs="*", help="Task description")
     p_query.add_argument("--query", dest="query_kw", type=str, help="Task description (alt)")
     p_query.add_argument("--top", type=int, default=5, help="Number of results (default: 5)")
-    p_query.add_argument("--method", choices=["bm25", "embedding", "hybrid"],
-                         default="hybrid", help="Search method (default: hybrid)")
+    p_query.add_argument("--method", choices=["bm25", "embedding", "hybrid", "rrf"],
+                         default="rrf", help="Search method (default: rrf)")
     p_query.add_argument("--format", choices=["text", "json"], default="text",
                          help="Output format (default: text)")
     p_query.add_argument("--session", type=str, default="",
@@ -222,6 +222,8 @@ def cmd_query(args):
         results = retriever.bm25_search(query, top_k=args.top * 4)
     elif args.method == "embedding":
         results = retriever.embedding_search(query, top_k=args.top * 4)
+    elif args.method == "rrf":
+        results = retriever.rrf_search(query, top_k=args.top * 4)
     else:
         results = retriever.hybrid_search(query, top_k=args.top * 4)
 
