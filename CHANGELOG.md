@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-06-19 — Remove Broken ONNX int8 Code Path
+
 ### Removed
 - **ONNX int8 code path** — stripped from `retriever.py` (constructor, `_load_embedding_model`, `_encode_query`, `_encode_skill_text`) and `scripts/download-embedding-model.py` rewritten as pure MiniLM downloader. ONNX int8 quantization degraded BERT embeddings (cosine similarity >0.996 across all pairs) making retrieval useless; MiniLM sentence-transformers is faster (22x cold start) and more accurate without ONNX.
+
+### Changed
+- Version bumped to **0.7.1**.
 
 ## [0.7.0] - 2026-06-19 — MiniLM Embedding + Adaptive Retrieval + Knowledge Graph
 
@@ -306,7 +311,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 || 0.2.1   | 2026-06-18 | Patch  | 16 bug fixes, 24 regression tests |
 || 0.2.0   | 2026-06-18 | Minor  | Initial public release, MCP server |
 
-[Unreleased]: https://github.com/Mavis2103/skill-context-manager/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/Mavis2103/skill-context-manager/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/Mavis2103/skill-context-manager/compare/v0.7.0...v0.7.1
 [0.6.2]: https://github.com/Mavis2103/skill-context-manager/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Mavis2103/skill-context-manager/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Mavis2103/skill-context-manager/compare/v0.5.0...v0.6.0
