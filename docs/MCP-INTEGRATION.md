@@ -48,11 +48,14 @@ hermes mcp test scm      # Test connection
 # In session: /reload-mcp  # Reload MCP tools
 ```
 
-### Method 2: Auto-setup script
+### Method 2: One-command auto-setup
 
 ```bash
-cd ~/.scm
-bash scripts/install-mcp-hermes.sh
+# Configure all 13 supported platforms at once
+scm mcp setup --all
+
+# Or pick specific agents
+scm mcp setup --claude-code --cursor --windsurf --hermes
 ```
 
 ### Usage in Hermes Agent

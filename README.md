@@ -53,19 +53,18 @@ SCM is a **proxy layer** between the agent and the skill directory. Instead of l
 
 - **Python 3.11+**
 - **uv** (Astral) — auto-installed if missing
-- **git**
 
 ### One-Click Install (recommended)
 
 ```bash
-# Basic install (18 seconds)
+# Quick install via uv tool (no clone, ~3 seconds)
 curl -fsSL https://raw.githubusercontent.com/Mavis2103/skill-context-manager/main/scripts/install.sh | bash
 
 # With MCP auto-setup (configures all 13 supported agent platforms)
 curl -fsSL https://raw.githubusercontent.com/Mavis2103/skill-context-manager/main/scripts/install.sh | bash -s -- --with-mcp
 
-# Custom directory
-curl -fsSL ... | bash -s -- --scm-dir ~/custom/path
+# Dev mode (clone repo + editable install, for contributors)
+curl -fsSL ... | bash -s -- --dev --scm-dir ~/custom/path
 ```
 
 The installer will:
@@ -73,16 +72,15 @@ The installer will:
 | Step | What happens |
 |------|-------------|
 | ✅ Pre-flight | Check Python 3.11+, install `uv` if needed |
-| ✅ Clone | `git clone --depth 1` to `~/.scm` |
-| ✅ Venv | `uv venv` + `uv pip install -e .` — lightweight core (`mcp` + `PyYAML`) |
-| ✅ Symlink | `~/.local/bin/scm` — auto-PATH via profile.d + shell rc |
+| ✅ Install | `uv tool install scm` from GitHub — no clone, no venv, no symlink |
 | ✅ Index | Auto-index skill dirs (`~/.hermes/skills/`, `~/.claude/skills/`, `~/.cursor/skills/`, and any custom path)|
 | ✅ Sanity | Smoke test + version check |
 
-### Manual Install
+### Dev Install (clone + editable)
+
+For contributors who want to modify SCM source:
 
 ```bash
-# Requirements: Python 3.11+, uv, git
 git clone https://github.com/Mavis2103/skill-context-manager.git
 cd skill-context-manager
 uv venv
@@ -100,13 +98,25 @@ echo 'export PATH="$PATH:'$(pwd)'/.venv/bin"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
+Or use the installer with `--dev`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Mavis2103/skill-context-manager/main/scripts/install.sh | bash -s -- --dev
+```
+
 ### Uninstall
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Mavis2103/skill-context-manager/main/scripts/install.sh | bash -s -- --uninstall
 ```
 
-Removes: source, venv, database, symlink, PATH config, MCP config.
+Removes: uv tool, database, MCP configs, dev clone (if applicable).
+
+### Update
+
+```bash
+uv tool upgrade scm
+```
 
 ## Features
 

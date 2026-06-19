@@ -11,8 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Default install directory** moved from `~/Workspaces/skill-context-manager` to `~/.scm/` — cleaner, hidden dotfile layout.
 - **Database directory** moved from `~/.scm/` to `~/.scm/db/` — avoids conflict with source code when both live under `~/.scm/`.
 - **Package name** renamed from `skill-context-manager` to `scm` — `uv tool upgrade scm` and `uv tool uninstall scm` now work.
+- **Install method** switched to `uv tool install — no clone, no venv, no symlink. One command, ~3 seconds. `--dev` flag available for editable clone install.
 - **`src/scm/db.py`** — `SCM_DB_DIR` updated to `~/.scm/db/`.
-- **`scripts/install.sh`** — `SCM_DIR` default changed to `~/.scm/`, `SCM_DB_DIR` to `~/.scm/db/`.
+- **`scripts/install.sh`** — rewritten to use `uv tool install` as default; `--dev` for editable clone install.
 - Version bumped to **0.5.0**.
 
 ### Migration
