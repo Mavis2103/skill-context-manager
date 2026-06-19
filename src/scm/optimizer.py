@@ -6,7 +6,6 @@ import os
 import re
 from collections import Counter
 from pathlib import Path
-from typing import Optional
 
 from .models import Skill
 
@@ -223,7 +222,7 @@ class SkillOptimizer:
                 if not updated_desc:
                     new_fm_lines.append(f"description: {skill.description}")
 
-                new_content = f"---\n" + "\n".join(new_fm_lines) + f"\n---\n{body}"
+                new_content = "---\n" + "\n".join(new_fm_lines) + f"\n---\n{body}"
         else:
             tags_str = ", ".join(skill.tags)
             new_content = (

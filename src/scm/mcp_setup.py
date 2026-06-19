@@ -19,7 +19,7 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable
 
 # The tools we expose to allow-list–based clients (Hermes). Other clients
 # auto-discover every tool, so this list is only used where required.

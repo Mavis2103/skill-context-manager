@@ -19,7 +19,6 @@ Tools exposed:
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
 import sys
 import time
@@ -56,7 +55,7 @@ def safe_call(fn):
 
 # ── MCP Server ────────────────────────────────────────────────────
 
-def create_mcp_server() -> "FastMCP":
+def create_mcp_server() -> "FastMCP":  # noqa: F821 — lazy import inside fn body
     """Create and configure the SCM MCP server."""
     from mcp.server.fastmcp import FastMCP
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 import sqlite3
@@ -41,7 +40,7 @@ class SkillRetriever:
 
             for fts_query in fts_queries:
                 try:
-                    rows = conn.execute(f"""
+                    rows = conn.execute("""
                         SELECT s.*, rank
                         FROM skills_fts f
                         JOIN skills s ON s.rowid = f.rowid

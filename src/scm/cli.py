@@ -107,7 +107,7 @@ Examples:
                           choices=range(1, 6),
                           help="User rating 1-5")
 
-    p_fb_stats = p_fb_sub.add_parser("stats", help="View feedback statistics")
+    p_fb_sub.add_parser("stats", help="View feedback statistics")
 
     # ── stats ──
     sub.add_parser("stats", help="Show indexing statistics")
@@ -134,7 +134,7 @@ Examples:
     p_mcp_start.add_argument("--http", action="store_true", help="HTTP/SSE mode")
     p_mcp_start.add_argument("--port", type=int, default=8321, help="Port (default: 8321)")
 
-    p_mcp_status = p_mcp_sub.add_parser("status", help="Check SCM MCP configuration status")
+    p_mcp_sub.add_parser("status", help="Check SCM MCP configuration status")
 
     return parser
 
@@ -304,7 +304,7 @@ def cmd_session(args):
                 for r in results
             ]
         print(json.dumps(context, indent=2))
-        print(f"\n📝 Add this to your agent's system prompt:")
+        print("\n📝 Add this to your agent's system prompt:")
         if context["active_skills"]:
             print(f'   "Skills active in this session: {", ".join(context["active_skills"])}"')
         if context.get("matching_skills"):
@@ -329,14 +329,14 @@ def cmd_optimize(args):
         print(f"   Errors: {len(errors)}")
 
     if changed and args.dry_run:
-        print(f"\n📊 Potential savings:")
+        print("\n📊 Potential savings:")
         before = sum(r["before_tokens"] for r in changed)
         after = sum(r["after_tokens"] for r in changed)
         pct = ((before - after) / before * 100) if before else 0
         print(f"   Before: {before} meta tokens")
         print(f"   After:  {after} meta tokens")
         print(f"   Saved:  {before - after} tokens per load ({pct:.0f}%)")
-        print(f"\n   Run with --no-dry-run to apply changes.\n")
+        print("\n   Run with --no-dry-run to apply changes.\n")
         for r in sorted(changed, key=lambda x: x["before_tokens"] - x["after_tokens"],
                         reverse=True)[:5]:
             saved = r["before_tokens"] - r["after_tokens"]
@@ -362,13 +362,13 @@ def cmd_feedback(args):
 
     elif args.feedback_action == "stats":
         stats = engine.get_stats()
-        print(f"\n📊 Feedback Statistics")
+        print("\n📊 Feedback Statistics")
         print(f"   Total feedback:    {stats['total_feedback']}")
         print(f"   Success rate:      {stats['success_rate']:.0%}")
         print(f"   Query patterns:    {stats['query_patterns']}")
         print(f"   Skills with data:  {stats['skills_with_feedback']}")
         if stats['top_skills']:
-            print(f"\n   Top skills by success rate:")
+            print("\n   Top skills by success rate:")
             for s in stats['top_skills'][:5]:
                 rate = s['rate']
                 print(f"     • {s['name']}: {s['successes']}/{s['successes'] + s['failures']} "
@@ -379,14 +379,14 @@ def cmd_stats(args=None):
     indexer = SkillIndexer()
     stats = indexer.stats()
 
-    print(f"\n📊 Skill Index Statistics")
+    print("\n📊 Skill Index Statistics")
     print(f"   Total skills:     {stats['total_skills']}")
     print(f"   Categories:       {len(stats['categories'])}")
     print(f"   Metadata tokens:  {stats['total_tokens_metadata']}")
     print(f"   Body tokens:      {stats['total_tokens_body']}")
 
     if stats['categories']:
-        print(f"\n   By category:")
+        print("\n   By category:")
         for cat, count in sorted(stats['categories'].items(), key=lambda x: -x[1])[:10]:
             print(f"     • {cat}: {count} skills")
 
@@ -407,7 +407,7 @@ def cmd_insights(args):
     print(f"   Retrieval methods: {insights['retrieval_methods']}")
 
     if insights['top_skills']:
-        print(f"\n   Top skills used:")
+        print("\n   Top skills used:")
         for s in insights['top_skills'][:5]:
             print(f"     • {s['name']}: {s['count']} times")
 

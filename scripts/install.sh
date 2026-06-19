@@ -223,9 +223,22 @@ index_skills() {
   header "Indexing"
 
   local dirs=(
+    # Hermes Agent
     "${HOME}/.hermes/skills"
+    # Claude Code / Claude Desktop
     "${HOME}/.claude/skills"
+    # Cursor
     "${HOME}/.cursor/skills"
+    # Windsurf
+    "${HOME}/.codeium/windsurf/skills"
+    # Codex CLI
+    "${HOME}/.codex/skills"
+    # Goose
+    "${HOME}/.config/goose/skills"
+    # Continue.dev
+    "${HOME}/.continue/skills"
+    # Generic fallback for any agent that uses XDG
+    "${HOME}/.local/share/agent-skills"
   )
   local found=false
 

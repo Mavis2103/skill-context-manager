@@ -8,10 +8,8 @@ more accurate relevance scores.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from typing import Optional
 
-from .models import Skill, QueryResult
+from .models import QueryResult
 
 logger = logging.getLogger("scm.reranker")
 
