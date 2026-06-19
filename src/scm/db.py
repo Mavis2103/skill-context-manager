@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 
-SCM_DB_DIR = Path.home() / ".scm"
+SCM_DB_DIR = Path.home() / ".scm" / "db"
 SCM_DB_PATH = SCM_DB_DIR / "scm.db"
 
 

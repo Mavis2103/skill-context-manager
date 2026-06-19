@@ -1,6 +1,6 @@
 [project]
 name = "scm"
-version = "0.4.0"
+version = "0.5.0"
 description = "Context-aware skill selection for AI agents — solves 'too many skills' problem"
 readme = "README.md"
 requires-python = ">=3.11"

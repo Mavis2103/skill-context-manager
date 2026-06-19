@@ -5,6 +5,24 @@ All notable changes to **Skill Context Manager (SCM)** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-06-19 — Install Dir Relocation + Package Rename
+
+### Changed
+- **Default install directory** moved from `~/Workspaces/skill-context-manager` to `~/.scm/` — cleaner, hidden dotfile layout.
+- **Database directory** moved from `~/.scm/` to `~/.scm/db/` — avoids conflict with source code when both live under `~/.scm/`.
+- **Package name** renamed from `skill-context-manager` to `scm` — `uv tool upgrade scm` and `uv tool uninstall scm` now work.
+- **`src/scm/db.py`** — `SCM_DB_DIR` updated to `~/.scm/db/`.
+- **`scripts/install.sh`** — `SCM_DIR` default changed to `~/.scm/`, `SCM_DB_DIR` to `~/.scm/db/`.
+- Version bumped to **0.5.0**.
+
+### Migration
+> If you have an existing database at `~/.scm/scm.db`, move it to `~/.scm/db/scm.db`:
+> ```bash
+> mkdir -p ~/.scm/db && mv ~/.scm/scm.db ~/.scm/db/scm.db
+> ```
+
+---
+
 ## [0.4.0] - 2026-06-19 — Agent Auto-Detection + Install Fixes
 
 ### Added
@@ -205,6 +223,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 || Version | Date       | Type   | Highlights |
 ||---------|-----------|--------|------------|
+|| 0.5.0   | 2026-06-19 | Minor  | Install dir ~/.scm/, DB under ~/.scm/db/, package rename to scm |
 || 0.4.0   | 2026-06-19 | Minor  | Agent auto-detection, install.sh fixes, `--all`/`--force-all` split |
 || 0.3.1   | 2026-06-19 | Patch  | Zed config fix, ruff lint fixes, expanded skill dirs |
 || 0.3.0   | 2026-06-19 | Minor  | Multi-agent MCP setup registry, 13 platforms, bug fixes |
@@ -212,7 +231,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 || 0.2.1   | 2026-06-18 | Patch  | 16 bug fixes, 24 regression tests |
 || 0.2.0   | 2026-06-18 | Minor  | Initial public release, MCP server |
 
-[Unreleased]: https://github.com/Mavis2103/skill-context-manager/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/Mavis2103/skill-context-manager/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/Mavis2103/skill-context-manager/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Mavis2103/skill-context-manager/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/Mavis2103/skill-context-manager/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Mavis2103/skill-context-manager/compare/v0.2.2...v0.3.0

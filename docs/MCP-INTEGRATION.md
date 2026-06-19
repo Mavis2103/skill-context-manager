@@ -51,7 +51,7 @@ hermes mcp test scm      # Test connection
 ### Method 2: Auto-setup script
 
 ```bash
-cd ~/Workspaces/skill-context-manager
+cd ~/.scm
 bash scripts/install-mcp-hermes.sh
 ```
 

@@ -5,7 +5,7 @@
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/Mavis2103/skill-context-manager/main/scripts/install.sh | bash
-#   curl -fsSL ... | bash -s -- --with-mcp          # auto-configure Hermes + OpenCode
+#   curl -fsSL ... | bash -s -- --with-mcp          # auto-configure all 13 agent platforms
 #   curl -fsSL ... | bash -s -- --uninstall         # remove everything
 #   curl -fsSL ... | bash -s -- --scm-dir ~/custom/path
 # =============================================================================
@@ -15,9 +15,9 @@ set -euo pipefail
 # ---- Config ----------------------------------------------------------------
 REPO="Mavis2103/skill-context-manager"
 REPO_URL="https://github.com/${REPO}.git"
-SCM_DIR="${SCM_DIR:-${HOME}/Workspaces/skill-context-manager}"
+SCM_DIR="${SCM_DIR:-${HOME}/.scm}"
 SCM_BIN="${SCM_BIN:-${HOME}/.local/bin}"
-SCM_DB_DIR="${HOME}/.scm"
+SCM_DB_DIR="${HOME}/.scm/db"
 PROFILE_D="/etc/profile.d"
 WITH_MCP=false
 
@@ -211,7 +211,7 @@ setup_mcp() {
   header "MCP Integration"
 
   if scm mcp setup --all 2>&1; then
-    ok "MCP configured for Hermes Agent + OpenCode"
+    ok "MCP configured for all 13 agents"
   else
     warn "MCP setup incomplete — configure manually:"
     warn "  scm mcp setup --all"
@@ -384,7 +384,7 @@ print_summary() {
   echo ""
 
   if $WITH_MCP; then
-    info "${GREEN}MCP configured for Hermes Agent + OpenCode 🎉${NC}"
+    info "${GREEN}MCP configured for all 13 agents 🎉${NC}"
     echo "  Restart your agent to start using SCM tools."
   fi
 }

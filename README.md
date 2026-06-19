@@ -7,7 +7,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![SQLite FTS5](https://img.shields.io/badge/search-BM25%20%2B%20Embedding%20%2B%20Cross--encoder-green)](https://sqlite.org/fts5.html)
 [![MCP](https://img.shields.io/badge/MCP-Server%20Ready-purple)](https://modelcontextprotocol.io)
-[![Version](https://img.shields.io/badge/version-0.4.0-orange)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.5.0-orange)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-127%20%E2%9C%94%EF%B8%8F-brightgreen)]()
 
 ---
@@ -73,7 +73,7 @@ The installer will:
 | Step | What happens |
 |------|-------------|
 | ✅ Pre-flight | Check Python 3.11+, install `uv` if needed |
-| ✅ Clone | `git clone --depth 1` to `~/Workspaces/skill-context-manager` |
+| ✅ Clone | `git clone --depth 1` to `~/.scm` |
 | ✅ Venv | `uv venv` + `uv pip install -e .` — lightweight core (`mcp` + `PyYAML`) |
 | ✅ Symlink | `~/.local/bin/scm` — auto-PATH via profile.d + shell rc |
 | ✅ Index | Auto-index skill dirs (`~/.hermes/skills/`, `~/.claude/skills/`, `~/.cursor/skills/`, and any custom path)|
@@ -540,7 +540,7 @@ skill-context-manager/
 
 ### Storage
 
-Single SQLite database (`~/.scm/scm.db`) with WAL mode:
+Single SQLite database (`~/.scm/db/scm.db`) with WAL mode:
 
 | Table | Purpose |
 |-------|---------|
@@ -644,4 +644,4 @@ MIT — Copyright (c) 2026 Mavis2103
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for version history. Current: **v0.4.0**.
+See [CHANGELOG.md](CHANGELOG.md) for version history. Current: **v0.5.0**.
