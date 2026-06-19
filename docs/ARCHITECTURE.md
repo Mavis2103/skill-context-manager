@@ -2,7 +2,7 @@
 
 ## Core Problem
 
-AI agents (Claude Code, Cline, Hermes Agent, OpenCode) suffer from **skill overload**:
+AI agents (Claude Code, Cline, Hermes Agent, OpenCode, and 9+ other platforms) suffer from **skill overload**:
 when too many skills/tools are available, the agent's performance degrades due to:
 
 1. **Context window bloat** — Tool definitions consume 30-60K tokens pre-conversation

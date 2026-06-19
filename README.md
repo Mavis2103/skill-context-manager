@@ -61,7 +61,7 @@ SCM is a **proxy layer** between the agent and the skill directory. Instead of l
 # Basic install (18 seconds)
 curl -fsSL https://raw.githubusercontent.com/Mavis2103/skill-context-manager/main/scripts/install.sh | bash
 
-# With MCP auto-setup (configures Hermes Agent + OpenCode)
+# With MCP auto-setup (configures all 13 supported agent platforms)
 curl -fsSL https://raw.githubusercontent.com/Mavis2103/skill-context-manager/main/scripts/install.sh | bash -s -- --with-mcp
 
 # Custom directory
@@ -76,7 +76,7 @@ The installer will:
 | ✅ Clone | `git clone --depth 1` to `~/Workspaces/skill-context-manager` |
 | ✅ Venv | `uv venv` + `uv pip install -e .` — lightweight core (`mcp` + `PyYAML`) |
 | ✅ Symlink | `~/.local/bin/scm` — auto-PATH via profile.d + shell rc |
-| ✅ Index | Auto-index `~/.hermes/skills/`, `~/.claude/skills/`, `~/.cursor/skills/` |
+| ✅ Index | Auto-index skill dirs (`~/.hermes/skills/`, `~/.claude/skills/`, `~/.cursor/skills/`, and any custom path)|
 | ✅ Sanity | Smoke test + version check |
 
 ### Manual Install
@@ -365,8 +365,8 @@ python3 -m scm.mcp_server --http --port 8321
 
 ### Per-Agent Config Formats (Reference)
 
-Each agent uses a unique config format. The `scm mcp setup` command handles all of these
-automatically — these examples are for reference:
+Each agent uses a unique config format. The `scm mcp setup` command handles all 13 platforms
+automatically — these examples illustrate the variety of formats in use:
 
 **Hermes Agent** (`~/.hermes/config.yaml`):
 ```yaml
@@ -622,8 +622,7 @@ uv run pytest --cov=src/scm/ tests/
 - [x] Feedback loop with Bayesian weights
 - [x] Usage analytics and insights
 - [x] **MCP Server** (11 tools)
-- [x] **Hermes Agent integration**
-- [x] **OpenCode integration**
+- [x] **Multi-agent MCP setup** (13 platforms: Claude Code, Claude Desktop, Cursor, Windsurf, Cline, Gemini, VS Code, Zed, Codex CLI, Goose, Continue.dev, OpenCode, Hermes Agent)
 - [x] **Single shared DB** (eliminates cross-DB bugs)
 - [x] **77 tests across all modules**
 - [x] **101 tests + 16 bug fixes** (v0.2.1)
