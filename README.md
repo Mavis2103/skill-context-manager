@@ -100,9 +100,9 @@ rm -rf ~/.scm                           # remove database
 git clone https://github.com/Mavis2103/skill-context-manager.git
 cd skill-context-manager
 uv venv && source .venv/bin/activate
-uv pip install -e .              # BM25 only
-uv pip install -e ".[light]"     # + embedding (all-MiniLM-L6-v2)
-uv pip install -e ".[full]"      # + reranker
+uv pip install -e .                   # Level 1: BM25 only
+# or: uv pip install -e ".[light]"    # Level 2: + embedding (recommended)
+# or: uv pip install -e ".[full]"     # Level 3: + reranker
 ```
 
 ## Features
