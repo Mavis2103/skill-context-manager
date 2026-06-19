@@ -24,9 +24,9 @@
 
 ### Research References
 
-- **SkillRouter (CVPR 2026)**: 91.7% of cross-encoder attention goes to **skill body**, only 1.0% to description — metadata alone is insufficient.
-- **Anthropic Tool Search**: BM25-based deferred loading, 85% token reduction.
-- **Anthropic internal eval**: Opus 4 accuracy from 79.5% → 49% with >50 tools.
+- **SkillRouter (Zheng et al., 2026)**: 91.7% of cross-encoder attention goes to **skill body**, only 1.0% to description — metadata alone is insufficient. ([arXiv:2603.22455](https://arxiv.org/abs/2603.22455))
+- **Anthropic Tool Search**: BM25-based deferred loading, 85% token reduction. ([Engineering blog](https://www.anthropic.com/engineering/advanced-tool-use))
+- **Anthropic eval data** (via Hermes Agent): Opus 4 accuracy drops to ~49% without tool search; Tool Search restores it to ~74%.
 
 ## Solution
 
@@ -491,7 +491,7 @@ without any AI models. The embedding and cross-encoder models are entirely optio
 |----------|---------------------|-----------------|----------------|---------------|------------|------------|
 | **Claude Code Skills** | ✅ Load on-demand | ❌ Keyword | ❌ No | ❌ No | ~500 tokens | ❌ |
 | **MCP Tool Search** | ✅ Deferred load | ✅ BM25 | ❌ No | ❌ No | ~500 tokens | ❌ |
-| **SkillRouter (CVPR)** | ❌ All at once | ✅ Cross-encoder | ❌ No | ✅ Yes | Training needed | ❌ GPU |
+| **SkillRouter (arXiv)** | ❌ All at once | ✅ Cross-encoder | ❌ No | ✅ Yes | Training needed | ❌ GPU |
 | **Hermes Skills** | ✅ Metadata only | ❌ Keyword | ❌ No | ❌ No | ~3K tokens | ✅ |
 | **Lunar MCPX** | ✅ Tool groups | ✅ Custom | ❌ No | ❌ No | ~8.7K tokens | ❌ |
 | **✨ SCM (This)** | ✅ Metadata only | ✅ BM25 + Embedding + Cross-encoder | ✅ Full session tracking | ✅ Bayesian | **~275 tokens** | ✅ |
@@ -632,7 +632,7 @@ uv run pytest --cov=src/scm/ tests/
 
 ## References
 
-1. **SkillRouter: Retrieval-Augmented Skill Selection for LLM Agents at Scale** — Zheng et al., CVPR 2026. [arXiv:2603.22455](https://arxiv.org/abs/2603.22455)
+1. **SkillRouter: Retrieve-and-Rerank Skill Selection for LLM Agents at Scale** — Zheng et al., 2026 (arXiv preprint). [arXiv:2603.22455](https://arxiv.org/abs/2603.22455)
 2. **Advanced Tool Use & Tool Search** — Anthropic Engineering Blog. [Link](https://www.anthropic.com/engineering/advanced-tool-use)
 3. **MCP Tool Scalability Problem** — Jenova AI. [Link](https://www.jenova.ai/en/resources/mcp-tool-scalability-problem)
 4. **Skills Over MCPs: Context-Efficient Agent Capabilities** — Agentic Engineer. [Link](https://www.agentic-engineer.com/blog/2025-12-04-skills-over-mcps-context-efficiency)

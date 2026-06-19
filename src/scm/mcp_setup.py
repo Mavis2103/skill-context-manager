@@ -226,7 +226,9 @@ def _cfg_json_vscode(p: Platform, uninstall: bool) -> str:
 
 def _cfg_json_zed(p: Platform, uninstall: bool) -> str:
     cmd, args = server_command()
-    entry = {"source": "custom", "command": {"path": cmd, "args": args}}
+    # Zed uses flat command/args, NOT a nested {"path": ..., "args": ...} object.
+    # Ref: https://zed.dev/docs/ai/mcp
+    entry = {"command": cmd, "args": args}
     if uninstall:
         if not p.path.exists():
             return NOT_FOUND

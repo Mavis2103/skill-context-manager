@@ -104,7 +104,10 @@ def test_zed_uses_context_servers(fake_home):
     ms.configure("zed")
     data = json.loads(ms.PLATFORMS["zed"].path.read_text())
     assert "scm" in data["context_servers"]
-    assert "path" in data["context_servers"]["scm"]["command"]
+    entry = data["context_servers"]["scm"]
+    # command is a plain string per https://zed.dev/docs/ai/mcp
+    assert isinstance(entry["command"], str)
+    assert entry["args"] == ["-m", "scm.mcp_server"]
 
 
 def test_codex_toml_block(fake_home):
