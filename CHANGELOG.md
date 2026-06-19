@@ -5,6 +5,21 @@ All notable changes to **Skill Context Manager (SCM)** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2026-06-19 — Graceful YAML Frontmatter Parsing
+
+### Fixed
+- **Unquoted colons in YAML frontmatter** — `yaml.safe_load` now falls back to the naive parser when it fails (previously crashed and skipped the skill). Skills with descriptions like `"a skill to: create a page"` no longer error out during `scm index`.
+
+### Added
+- **`test_from_skill_file_unquoted_colon_in_description`** — regression test for unquoted colons in frontmatter.
+
+### Changed
+- `Skill.from_skill_file()` — YAML parsing now catches `Exception` instead of just `ImportError`, falling back to the naive parser on any parse failure.
+- Test suite: 135 → **136 tests** (all passing).
+- Version bumped to **0.6.2**.
+
+---
+
 ## [0.6.1] - 2026-06-19 — Global Skills Auto-Detect
 
 ### Added
@@ -254,6 +269,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 || Version | Date       | Type   | Highlights |
 ||---------|-----------|--------|------------|
+|| 0.6.2   | 2026-06-19 | Patch  | Graceful YAML parsing (unquoted colons in frontmatter) |
 || 0.6.1   | 2026-06-19 | Patch  | Auto-detect `.agents/skills/` global skills dir |
 || 0.6.0   | 2026-06-19 | Minor  | Index safety (skip hidden/noise dirs), auto-detect skill dirs, progress |
 || 0.5.0   | 2026-06-19 | Minor  | Install dir ~/.scm/, DB under ~/.scm/db/, package rename to scm |
@@ -264,7 +280,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 || 0.2.1   | 2026-06-18 | Patch  | 16 bug fixes, 24 regression tests |
 || 0.2.0   | 2026-06-18 | Minor  | Initial public release, MCP server |
 
-[Unreleased]: https://github.com/Mavis2103/skill-context-manager/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/Mavis2103/skill-context-manager/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/Mavis2103/skill-context-manager/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Mavis2103/skill-context-manager/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Mavis2103/skill-context-manager/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Mavis2103/skill-context-manager/compare/v0.4.0...v0.5.0

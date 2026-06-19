@@ -106,8 +106,8 @@ class Skill:
                             tags = [str(t).strip() for t in raw_tags]
                         elif isinstance(raw_tags, str):
                             tags = [t.strip() for t in raw_tags.strip("[]\"").split(",")]
-                except ImportError:
-                    # Fallback: naive parser if yaml not installed
+                except (ImportError, Exception):
+                    # Fallback: naive parser if yaml not installed or parsing fails
                     for line in frontmatter_text.strip().split("\n"):
                         if ":" in line:
                             key, _, val = line.partition(":")

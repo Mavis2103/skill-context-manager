@@ -89,6 +89,25 @@ Body
             assert "colons" in skill.description
             assert len(skill.tags) == 3
 
+    def test_from_skill_file_unquoted_colon_in_description(self):
+        """Fall back to naive parser when YAML fails on unquoted colon."""
+        with tempfile.TemporaryDirectory() as tmp:
+            skill_dir = Path(tmp) / "confluence-gen"
+            skill_dir.mkdir()
+            skill_file = skill_dir / "SKILL.md"
+            skill_file.write_text("""\
+---
+name: confluence-gen
+description: a skill whenever the user wants to: create a Confluence page, export to PDF
+---
+
+Body text
+""")
+            skill = Skill.from_skill_file(skill_file)
+            assert skill.name == "confluence-gen"
+            assert "create a Confluence page" in skill.description
+            assert "export to PDF" in skill.description
+
     def test_metadata_str(self):
         """metadata_str produces token-efficient output."""
         skill = Skill(

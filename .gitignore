@@ -38,3 +38,6 @@ scripts/gen-bench-skills.py
 
 # Claude Code project memory
 .omc/
+
+# Hermes Agent plans
+.hermes/
