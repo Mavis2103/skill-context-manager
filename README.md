@@ -7,7 +7,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![SQLite FTS5](https://img.shields.io/badge/search-BM25%20%2B%20Embedding%20%2B%20Cross--encoder-green)](https://sqlite.org/fts5.html)
 [![MCP](https://img.shields.io/badge/MCP-Server%20Ready-purple)](https://modelcontextprotocol.io)
-[![Version](https://img.shields.io/badge/version-0.6.0-orange)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.6.1-orange)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-135%20%E2%9C%94%EF%B8%8F-brightgreen)]()
 
 ---
@@ -68,7 +68,10 @@ scm --version
 # MCP auto-setup (recommended) — configures all 13 agent platforms
 scm mcp setup --all
 
-# Index your skill directories
+# Index — auto-detect agent skill directories
+scm index
+
+# Or scan specific directory safely (skips .git/, node_modules/, .venv/, ...)
 scm index --dir ~/.hermes/skills/
 ```
 
@@ -98,6 +101,29 @@ uv pip install scm[full]
 ```
 
 ## Features
+
+### 0. Skill Indexing
+
+Index your skill files so SCM can search them. **Safe by default** — never accidentally scans noise directories.
+
+```bash
+# Auto-detect — finds all agent skill dirs installed on this system
+# (~/.agents/skills/, ~/.hermes/skills/, ~/.claude/skills/, ...)
+scm index
+# 📂 Scanning ~/.hermes/skills/ for skills...
+# ✅ Indexed 47 skill files
+
+# Or point at any directory (safe — skips .git, node_modules, .venv, __pycache__,
+# dist, all hidden dirs, and more)
+scm index --dir ~/my-skills/
+
+# Scan full home safely — still skips the same noise dirs
+scm index --dir ~/
+
+# Progress shown automatically for large scans:
+#    ... scanned 100/150
+#    ✅ Indexed 150 skill files
+```
 
 ### 1. Semantic Skill Retrieval
 
@@ -505,7 +531,7 @@ skill-context-manager/
 │   └── mcp_setup.py         # Multi-agent MCP setup registry (13 platforms)
 ├── tests/
 │   ├── test_models.py       # 13 tests — data models + YAML parsing
-│   ├── test_indexer.py      # 11 tests — index/reindex/empty/WAL
+│   ├── test_indexer.py      # 19 tests — index/reindex/skip/detect/progress/WAL
 │   ├── test_retriever.py    # 9 tests — BM25/hybrid/session boost/empty
 │   ├── test_session_feedback.py  # 21 tests — session lifecycle + feedback
 │   ├── test_optimizer.py    # 9 tests — compression/expansion/info-leak
@@ -574,7 +600,7 @@ scm session context --id "..." --query "scale deployment"
 ### Run Tests
 
 ```bash
-# All 101 tests (77 original + 24 regression)
+# All 135 tests
 uv run pytest -v
 
 # Specific module
@@ -616,6 +642,7 @@ uv run pytest --cov=src/scm/ tests/
 - [x] **101 tests + 16 bug fixes** (v0.2.1)
 - [x] **Agent auto-detection** (v0.4.0 — `--all` = detected only, `--force-all` = all 13)
 - [x] **Package rename + install dir** (v0.5.0 — package → `scm`, dirs → `~/.scm/`)
+- [x] **Index safety + auto-detect** (v0.6.0 — skip hidden/noise dirs, `scm index` auto-detects agent skill dirs, progress indicator)
 - [ ] GUI dashboard
 - [ ] Multi-agent session sharing
 
@@ -633,4 +660,4 @@ MIT — Copyright (c) 2026 Mavis2103
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for version history. Current: **v0.6.0**.
+See [CHANGELOG.md](CHANGELOG.md) for version history. Current: **v0.6.1**.

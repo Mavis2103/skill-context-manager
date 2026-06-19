@@ -192,6 +192,10 @@ Updated body
 
     def test_detect_skill_dirs_finds_common(self, tmp_path, monkeypatch):
         """detect_skill_dirs finds existing agent skill directories."""
+        agents = tmp_path / ".agents" / "skills"
+        agents.mkdir(parents=True)
+        (agents / "SKILL.md").write_text("---\nname: global\n---\nbody")
+
         hermes = tmp_path / ".hermes" / "skills"
         hermes.mkdir(parents=True)
         (hermes / "SKILL.md").write_text("---\nname: test\n---\nbody")
@@ -199,6 +203,7 @@ Updated body
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         dirs = SkillIndexer.detect_skill_dirs()
         assert hermes in dirs
+        assert agents in dirs
 
     def test_detect_skill_dirs_returns_empty_when_none_exist(self, tmp_path, monkeypatch):
         """detect_skill_dirs returns empty list when no agent dirs exist."""

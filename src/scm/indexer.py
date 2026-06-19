@@ -29,6 +29,7 @@ class SkillIndexer:
 
     # Common agent skill directories (relative to $HOME)
     AGENT_SKILL_DIRS = [
+        ".agents/skills",          # Global skills (multi-agent)
         ".hermes/skills",
         ".claude/skills",
         ".cursor/skills",
