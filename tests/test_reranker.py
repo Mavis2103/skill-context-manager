@@ -1,8 +1,6 @@
 """Tests for Skill Context Manager — cross-encoder reranker."""
 
-from pathlib import Path
 
-import pytest
 
 from scm.models import Skill, QueryResult
 from scm.reranker import SkillReranker

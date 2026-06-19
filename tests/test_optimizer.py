@@ -3,7 +3,6 @@
 import tempfile
 from pathlib import Path
 
-import pytest
 
 from scm.models import Skill
 from scm.optimizer import SkillOptimizer

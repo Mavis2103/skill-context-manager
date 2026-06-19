@@ -7,7 +7,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![SQLite FTS5](https://img.shields.io/badge/search-BM25%20%2B%20Embedding%20%2B%20Cross--encoder-green)](https://sqlite.org/fts5.html)
 [![MCP](https://img.shields.io/badge/MCP-Server%20Ready-purple)](https://modelcontextprotocol.io)
-[![Version](https://img.shields.io/badge/version-0.3.1-orange)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.4.0-orange)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-127%20%E2%9C%94%EF%B8%8F-brightgreen)]()
 
 ---
@@ -271,7 +271,7 @@ SCM runs as an **MCP server** with **11 tools**, compatible with any MCP-compati
 
 ### Multi-Agent Setup Registry
 
-SCM v0.3.0 ships with a **single-command setup for 13 agent platforms**. Instead of manually
+SCM v0.4.0 ships with a **single-command setup for 13 agent platforms**. Instead of manually
 configuring each agent's MCP settings, run:
 
 ```bash
@@ -626,6 +626,7 @@ uv run pytest --cov=src/scm/ tests/
 - [x] **Single shared DB** (eliminates cross-DB bugs)
 - [x] **77 tests across all modules**
 - [x] **101 tests + 16 bug fixes** (v0.2.1)
+- [x] **Agent auto-detection** (v0.4.0 — `--all` = detected only, `--force-all` = all 13)
 - [ ] GUI dashboard
 - [ ] Multi-agent session sharing
 
@@ -643,4 +644,4 @@ MIT — Copyright (c) 2026 Mavis2103
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for version history. Current: **v0.3.1**.
+See [CHANGELOG.md](CHANGELOG.md) for version history. Current: **v0.4.0**.

@@ -5,6 +5,43 @@ All notable changes to **Skill Context Manager (SCM)** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-06-19 — Agent Auto-Detection + Install Fixes
+
+### Added
+- **Agent auto-detection** (`src/scm/mcp_setup.py`) — `scm mcp setup --all`
+  now auto-detects which agents are installed on the system (checks config dir
+  and/or `PATH` binary for all 13 platforms).
+- **`scm mcp setup --force-all`** — configure all 13 agents regardless of
+  detection (use when the agent is installed but auto-detection heuristics
+  don't recognise it).
+- **`scm mcp status`** — now shows a detection marker (`✓`/`·`) per agent
+  and reports `configured/detected_total` instead of `configured/total`.
+- **`scm mcp setup --list`** — shows detection status for each platform
+  (e.g. `✓ --claude-code` vs `· --cursor`) with a summary line.
+
+### Fixed
+- **`install.sh` uninstall order** (CRITICAL) — MCP config cleanup now runs
+  **before** the venv and source are removed. Previously it ran after
+  `rm -rf $SCM_DIR`, which made `scm mcp setup --uninstall` impossible.
+- **`install.sh` uninstall flag** — `--all` → `--force-all` so that
+  uninstall cleans all 13 agents regardless of detection state.
+- **`install.sh` fallback path** — when `scm` CLI is gone but the venv
+  Python3 still exists, the installer calls `mcp_setup.configure_many()`
+  directly to clean all agents.
+- **`install.sh` cleanup helpers removed** — `_clean_mcp_hermes()` and
+  `_clean_mcp_opencode()` replaced by the universal `scm mcp setup` path.
+
+### Changed
+- **`scm mcp setup --all` semantics** — now configures **detected only**
+  (smart default). Pass `--force-all` for the old "all 13" behaviour.
+- **13 detection heuristics** — each agent key has a `DETECTORS` entry
+  that checks either the agent's config directory or its binary on PATH.
+  Unknown keys default to "assume present".
+- Version bumped to **0.4.0** (feature: auto-detection).
+- Test suite: **127 tests** (all passing, ruff clean).
+
+---
+
 ## [0.3.1] - 2026-06-19 — Bug Fix Patch
 
 ### Fixed
@@ -168,13 +205,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 || Version | Date       | Type   | Highlights |
 ||---------|-----------|--------|------------|
+|| 0.4.0   | 2026-06-19 | Minor  | Agent auto-detection, install.sh fixes, `--all`/`--force-all` split |
 || 0.3.1   | 2026-06-19 | Patch  | Zed config fix, ruff lint fixes, expanded skill dirs |
 || 0.3.0   | 2026-06-19 | Minor  | Multi-agent MCP setup registry, 13 platforms, bug fixes |
 || 0.2.2   | 2026-06-18 | Minor  | scm mcp setup CLI, uv-first install, README restructured |
 || 0.2.1   | 2026-06-18 | Patch  | 16 bug fixes, 24 regression tests |
 || 0.2.0   | 2026-06-18 | Minor  | Initial public release, MCP server |
 
-[Unreleased]: https://github.com/Mavis2103/skill-context-manager/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/Mavis2103/skill-context-manager/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Mavis2103/skill-context-manager/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/Mavis2103/skill-context-manager/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Mavis2103/skill-context-manager/compare/v0.2.2...v0.3.0
 [0.2.1]: https://github.com/Mavis2103/skill-context-manager/compare/v0.2.0...v0.2.1

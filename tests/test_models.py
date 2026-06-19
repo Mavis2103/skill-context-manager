@@ -4,7 +4,6 @@ import json
 import tempfile
 from pathlib import Path
 
-import pytest
 
 from scm.models import Skill, QueryResult, SessionState, FeedbackRecord
 

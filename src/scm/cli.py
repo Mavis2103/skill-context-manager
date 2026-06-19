@@ -125,9 +125,12 @@ Examples:
     for key, plat in PLATFORMS.items():
         p_mcp_setup.add_argument(f"--{key}", action="store_true",
                                  help=f"Configure for {plat.display}")
-    p_mcp_setup.add_argument("--all", action="store_true", help="Configure for all supported agents")
+    p_mcp_setup.add_argument("--all", action="store_true",
+                             help="Configure for all detected agents (auto-detect which are installed)")
+    p_mcp_setup.add_argument("--force-all", action="store_true", dest="force_all",
+                             help="Configure for ALL 13 agents regardless of detection")
     p_mcp_setup.add_argument("--list", action="store_true", dest="list_platforms",
-                             help="List all supported agent platforms")
+                             help="List all supported agent platforms with detection status")
     p_mcp_setup.add_argument("--uninstall", action="store_true", help="Remove SCM MCP config")
 
     p_mcp_start = p_mcp_sub.add_parser("start", help="Start MCP server")
@@ -438,16 +441,32 @@ def _mcp_setup(args):
     from . import mcp_setup as ms
 
     if getattr(args, "list_platforms", False):
-        print("\nSupported agents (use --<key> or --all):\n")
+        detected = set(ms.detected_keys())
+        print("\nSupported agents (✓ = detected on this system):\n")
         for key, plat in ms.PLATFORMS.items():
+            marker = "✓" if key in detected else "·"
             note = f"  ({plat.note})" if plat.note else ""
-            print(f"   --{key:<16} {plat.display}{note}")
-            print(f"   {'':16}   {plat.path}")
+            print(f"   {marker} --{key:<16} {plat.display}{note}")
+            print(f"     {'':16}   {plat.path}")
+        print(f"\n{len(detected)}/{len(ms.ALL_KEYS)} agents detected.")
+        print("Use --all (detected only) or --force-all (all 13).")
         print()
         return
 
-    if args.all:
+    force_all = getattr(args, "force_all", False)
+    if force_all:
         targets = ms.ALL_KEYS
+    elif args.all:
+        if args.uninstall:
+            # Uninstall: clean all regardless of detection (need to undo what was configured)
+            targets = ms.ALL_KEYS
+        else:
+            targets = ms.detected_keys()
+            if not targets:
+                print("No agents detected on this system.")
+                print("Use --force-all to configure all 13 anyway, or --list to see status.")
+                return
+            print(f"Detected {len(targets)} agent(s): {', '.join(targets)}")
     else:
         targets = [k for k in ms.PLATFORMS if getattr(args, k.replace("-", "_"), False)]
 
@@ -488,18 +507,23 @@ def _mcp_status():
 
     rows = ms.status_all()
     print("\nSCM MCP Status\n")
-    configured = 0
+    configured = detected_total = 0
     for r in rows:
+        det = r.get("detected", True)
+        if det:
+            detected_total += 1
+        det_mark = "✓" if det else "·"
         if r["configured"]:
-            label, icon = "Configured", "✅"
+            label, icon = "configured", "✅"
             configured += 1
         elif r["exists"]:
-            label, icon = "Not configured", "○"
+            label, icon = "not configured", "○"
         else:
-            label, icon = "Config not found", "·"
-        print(f"   {icon} {label:<16} {r['display']}")
-        print(f"      {r['path']}")
-    print(f"\n{configured}/{len(rows)} agents configured.")
+            label, icon = "not found", "·"
+        print(f"   {det_mark} {icon} {r['display']:<20} {label}")
+        print(f"        {r['path']}")
+    print(f"\n{configured}/{detected_total} detected agents configured "
+          f"({len(rows)} total supported).")
     if configured == 0:
-        print("Run: scm mcp setup --all")
+        print("Run: scm mcp setup --all   (installs to detected agents only)")
     print()

@@ -261,31 +261,6 @@ index_skills() {
   fi
 }
 
-# ---- Uninstall helpers (fallback when scm CLI unavailable) -----------------
-_clean_mcp_hermes() {
-  local cfg="${HOME}/.hermes/config.yaml"
-  [[ -f "$cfg" ]] || return 0
-  python3 -c "
-import re
-with open('${cfg}') as f: c = f.read()
-c = re.sub(r'\nmcp_servers:\n  scm:.*?(?=\n\w|\Z)', '', c, flags=re.DOTALL)
-with open('${cfg}', 'w') as f: f.write(c)
-" 2>/dev/null || true
-}
-
-_clean_mcp_opencode() {
-  local cfg="${HOME}/.config/opencode/opencode.json"
-  [[ -f "$cfg" ]] || return 0
-  python3 -c "
-import json
-try:
-    with open('${cfg}') as f: d = json.load(f)
-    d.get('mcp', {}).pop('scm', None)
-    with open('${cfg}', 'w') as f: json.dump(d, f, indent=2)
-except: pass
-" 2>/dev/null || true
-}
-
 # ---- Uninstall -------------------------------------------------------------
 action_uninstall() {
   header "Uninstalling SCM"
@@ -303,46 +278,55 @@ action_uninstall() {
     exit 0
   fi
 
-  # Remove symlink
+  # ── Step 1: Clean MCP configs FIRST (source still on disk) ──────────────
+  # Must run before removing the venv/source — fallback needs mcp_setup.py.
+  # Use --force-all to clean all 13 agents regardless of what's detected now.
+  if command -v scm &>/dev/null; then
+    scm mcp setup --force-all --uninstall 2>/dev/null || true
+    ok "Cleaned MCP configs via scm mcp"
+  elif [[ -f "${SCM_DIR}/.venv/bin/python3" ]]; then
+    # Venv python3 still present — call mcp_setup directly
+    "${SCM_DIR}/.venv/bin/python3" -c "
+import sys
+sys.path.insert(0, '${SCM_DIR}/src')
+from scm.mcp_setup import ALL_KEYS, configure_many
+configure_many(ALL_KEYS, uninstall=True)
+" 2>/dev/null && ok "Cleaned MCP configs (all 13 agents)" || \
+      warn "MCP config cleanup had errors — check agent configs manually"
+  else
+    warn "Could not clean MCP configs automatically."
+    warn "  Run manually: scm mcp setup --force-all --uninstall"
+  fi
+
+  # ── Step 2: Remove symlink ───────────────────────────────────────────────
   rm -f "${SCM_BIN}/scm"
   ok "Removed symlink"
 
-  # Remove venv
+  # ── Step 3: Remove venv ─────────────────────────────────────────────────
   if [[ -d "${SCM_DIR}/.venv" ]]; then
     rm -rf "${SCM_DIR}/.venv"
     ok "Removed venv"
   fi
 
-  # Remove source
+  # ── Step 4: Remove source ────────────────────────────────────────────────
   if [[ -d "$SCM_DIR" ]]; then
     rm -rf "$SCM_DIR"
     ok "Removed source"
   fi
 
-  # Remove DB
+  # ── Step 5: Remove database ──────────────────────────────────────────────
   if [[ -d "$SCM_DB_DIR" ]]; then
     rm -rf "$SCM_DB_DIR"
     ok "Removed database"
   fi
 
-  # Remove profile.d script
+  # ── Step 6: Remove profile.d PATH script ────────────────────────────────
   if [[ -f "${PROFILE_D}/scm-path.sh" ]]; then
     sudo rm -f "${PROFILE_D}/scm-path.sh" 2>/dev/null || true
     ok "Removed profile.d PATH config"
   fi
 
-  # Remove MCP config stanzas via CLI
-  if command -v scm &>/dev/null; then
-    scm mcp setup --all --uninstall 2>/dev/null || true
-    ok "Cleaned MCP configs via scm mcp"
-  else
-    # Fallback: direct file cleanup
-    _clean_mcp_hermes
-    _clean_mcp_opencode
-    ok "Cleaned MCP configs (direct)"
-  fi
-
-  # Clean shell rc lines
+  # ── Step 7: Clean shell rc files ────────────────────────────────────────
   for rc in "${HOME}/.bashrc" "${HOME}/.zshrc"; do
     if [[ -f "$rc" ]]; then
       python3 -c "

@@ -16,6 +16,7 @@ import json
 import os
 import platform as _platform
 import re
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -159,6 +160,47 @@ PLATFORMS: dict[str, Platform] = {
 
 # Agents enabled by `--all`. Order is display order.
 ALL_KEYS = list(PLATFORMS.keys())
+
+
+# ── Agent detection ───────────────────────────────────────────────────
+# Each entry returns True if the agent appears installed on this system.
+# Heuristic: check either the agent's config dir or binary on PATH.
+
+def _has_bin(*names: str) -> bool:
+    return any(shutil.which(n) for n in names)
+
+
+DETECTORS: dict[str, Callable[[], bool]] = {
+    "claude-code":    lambda: _home().joinpath(".claude").is_dir() or _has_bin("claude"),
+    "claude-desktop": lambda: _claude_desktop_path().parent.is_dir(),
+    "cursor":         lambda: _home().joinpath(".cursor").is_dir() or _has_bin("cursor"),
+    "windsurf":       lambda: _home().joinpath(".codeium", "windsurf").is_dir() or _has_bin("windsurf"),
+    "cline":          lambda: (_vscode_user_dir() / "globalStorage" / "saoudrizwan.claude-dev").is_dir(),
+    "gemini":         lambda: _home().joinpath(".gemini").is_dir() or _has_bin("gemini"),
+    "vscode":         lambda: _vscode_user_dir().is_dir() or _has_bin("code", "code-insiders"),
+    "zed":            lambda: _home().joinpath(".config", "zed").is_dir() or _has_bin("zed"),
+    "codex":          lambda: _home().joinpath(".codex").is_dir() or _has_bin("codex"),
+    "goose":          lambda: _home().joinpath(".config", "goose").is_dir() or _has_bin("goose"),
+    "continue":       lambda: _home().joinpath(".continue").is_dir(),
+    "opencode":       lambda: _home().joinpath(".config", "opencode").is_dir() or _has_bin("opencode"),
+    "hermes":         lambda: _home().joinpath(".hermes").is_dir() or _has_bin("hermes"),
+}
+
+
+def is_detected(key: str) -> bool:
+    """Return True if agent *key* appears to be installed on this system."""
+    fn = DETECTORS.get(key)
+    if fn is None:
+        return True  # unknown key → assume present
+    try:
+        return bool(fn())
+    except Exception:
+        return False
+
+
+def detected_keys() -> list[str]:
+    """Return platform keys whose agent appears installed."""
+    return [k for k in ALL_KEYS if is_detected(k)]
 
 
 # ── JSON helpers ──────────────────────────────────────────────────────
@@ -468,7 +510,8 @@ def status(key: str) -> dict:
     except Exception:  # noqa: BLE001
         configured = False
     return {"platform": key, "display": p.display, "path": str(p.path),
-            "configured": configured, "exists": p.path.exists()}
+            "configured": configured, "exists": p.path.exists(),
+            "detected": is_detected(key)}
 
 
 def status_all() -> list[dict]:

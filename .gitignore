@@ -30,3 +30,6 @@ Thumbs.db
 .coverage
 htmlcov/
 coverage.xml
+
+# Claude Code project memory
+.omc/

@@ -113,7 +113,7 @@ class TestRetriever:
             # Create fresh DB with empty skills table
             db = Path(tmp) / "empty.db"
             # Don't index anything — just create with init
-            indexer = SkillIndexer(db_path=db)
+            SkillIndexer(db_path=db)
             # The DB is initialized but empty
             retriever = SkillRetriever(db_path=db)
             results = retriever.bm25_search("anything", top_k=5)

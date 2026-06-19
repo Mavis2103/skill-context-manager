@@ -12,9 +12,7 @@ Bugs covered:
 - Optimizer tmp file cleanup on failure
 """
 
-import json
 import logging
-import os
 import tempfile
 from pathlib import Path
 
