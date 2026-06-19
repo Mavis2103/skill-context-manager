@@ -31,5 +31,10 @@ Thumbs.db
 htmlcov/
 coverage.xml
 
+# Local benchmark scripts
+scripts/benchmark-tokens.py
+scripts/benchmark-tokens.sh
+scripts/gen-bench-skills.py
+
 # Claude Code project memory
 .omc/
