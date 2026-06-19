@@ -118,3 +118,13 @@ class TestRetriever:
             retriever = SkillRetriever(db_path=db)
             results = retriever.bm25_search("anything", top_k=5)
             assert len(results) == 0
+
+    def test_embedding_fallback_when_model_missing(self, indexed_skills):
+        """Embedding_search falls back to BM25 when no model available."""
+        # Force no embedding model
+        indexed_skills._embedding_model = None
+        indexed_skills._emb_mode = None
+        results = indexed_skills.embedding_search("kubernetes deploy", top_k=3)
+        assert len(results) >= 1
+        # Results should come from BM25 fallback
+        assert any(r.retrieval_method in ("bm25", "like") for r in results)
