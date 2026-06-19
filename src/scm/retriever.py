@@ -382,3 +382,53 @@ class SkillRetriever:
                 boosted.append(r)
         boosted.sort(key=lambda r: r.score, reverse=True)
         return boosted
+
+    # ── Graph-aware boost (knowledge graph) ───────────────────────────
+
+    def apply_graph_boost(self, results: list[QueryResult],
+                          session_skills: list[str],
+                          boost_weight: float = 0.3) -> list[QueryResult]:
+        """Boost results based on graph proximity to session skills.
+
+        Uses Personalized PageRank from session skills as seed set.
+        Skills close to session context in the knowledge graph get a boost.
+
+        Args:
+            results: Ranked list of QueryResult to boost.
+            session_skills: Skills used in the current session (PPR seeds).
+            boost_weight: How much to weight PPR score vs original score (0-1).
+
+        Returns:
+            New list with graph-boosted scores.
+        """
+        if not session_skills or not results:
+            return results
+
+        try:
+            from .graph import SkillGraph
+
+            graph = SkillGraph(db_path=self.db_path)
+            ppr_scores = graph.ppr(session_skills)
+
+            if not ppr_scores:
+                return results
+
+            boosted = []
+            for r in results:
+                ppr = ppr_scores.get(r.skill.name, 0.0)
+                if ppr > 0:
+                    new_score = round(
+                        r.score * (1.0 - boost_weight) + ppr * boost_weight, 4
+                    )
+                    boosted.append(QueryResult(
+                        skill=r.skill, score=new_score,
+                        retrieval_method=r.retrieval_method + "+graph",
+                    ))
+                else:
+                    boosted.append(r)
+
+            boosted.sort(key=lambda r: r.score, reverse=True)
+            return boosted
+        except Exception as e:
+            logger.warning("Graph boost failed: %s", e)
+            return results
