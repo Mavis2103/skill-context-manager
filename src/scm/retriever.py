@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 import sqlite3
 from pathlib import Path
@@ -24,20 +23,10 @@ class SkillRetriever:
     # "BAAI/bge-base-en-v1.5" and clear cached embeddings from DB.
 
     def __init__(self, db_path: Optional[Path] = None,
-                 embedding_model: Optional[str] = None,
-                 use_onnx: Optional[bool] = None):
+                 embedding_model: Optional[str] = None):
         self.db_path = db_path
         self._embedding_model = None  # Lazy load
-        self._emb_tokenizer = None
-        self._emb_mode: Optional[str] = None  # "onnx", "sentence_tr", None
         self._model_name = embedding_model or self.DEFAULT_EMBEDDING_MODEL
-        # Auto-detect ONNX: prefer PyTorch by default (ONNX int8 quantization
-        # can degrade BERT embeddings to near-identical vectors on some models).
-        # Set SCM_USE_ONNX=1 to force ONNX despite quality risk.
-        if use_onnx is None:
-            self._use_onnx = os.environ.get("SCM_USE_ONNX") == "1"
-        else:
-            self._use_onnx = use_onnx
         init_schema(db_path)
 
     def _conn(self):
@@ -153,39 +142,10 @@ class SkillRetriever:
     # ── Embedding-based search ───────────────────────────────────────
 
     def _load_embedding_model(self):
-        """Lazy-load embedding model: ONNX → sentence-transformers → None.
-        
-        Graceful degradation chain:
-        1. ONNX int8 (fastest, if model files exist)
-        2. sentence-transformers (slower, works everywhere)
-        3. None (BM25 fallback)
-        """
+        """Lazy-load embedding model via sentence-transformers."""
         if self._embedding_model is not None:
             return
 
-        # Try ONNX first
-        if self._use_onnx:
-            try:
-                from optimum.onnxruntime import ORTModelForFeatureExtraction
-                from transformers import AutoTokenizer
-                import numpy as np
-
-                onnx_path = Path.home() / ".scm" / "models" / "bge-base-int8-onnx"
-                if onnx_path.exists():
-                    self._embedding_model = ORTModelForFeatureExtraction.from_pretrained(
-                        str(onnx_path), provider="CPUExecutionProvider",
-                        file_name="model_quantized.onnx",
-                    )
-                    self._emb_tokenizer = AutoTokenizer.from_pretrained(self._model_name)
-                    self._emb_mode = "onnx"
-                    logger.info("Loaded ONNX int8 embedding model")
-                    return
-            except ImportError:
-                logger.debug("optimum/transformers not available for ONNX")
-            except Exception as e:
-                logger.warning("ONNX model load failed: %s", e)
-
-        # Fallback: sentence-transformers
         try:
             from sentence_transformers import SentenceTransformer
 
@@ -199,7 +159,6 @@ class SkillRetriever:
                 model_source, device='cpu',
                 cache_folder=str(Path.home() / ".scm" / "models"),
             )
-            self._emb_mode = "sentence_tr"
             logger.info("Loaded sentence-transformers model: %s", self._model_name)
         except ImportError:
             logger.info("sentence-transformers not installed, embedding disabled")
@@ -210,46 +169,12 @@ class SkillRetriever:
 
     def _encode_query(self, query: str):
         """Encode query using loaded model. Returns normalized embedding."""
-        import numpy as np
-
-        if self._emb_mode == "onnx":
-            tokens = self._emb_tokenizer(
-                query, padding=True, truncation=True, max_length=512,
-                return_tensors="pt",
-            )
-            import torch
-            outputs = self._embedding_model(**tokens)
-            # Mean pooling
-            attention_mask = tokens["attention_mask"]
-            token_embeddings = outputs.last_hidden_state
-            input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-            emb = (token_embeddings * input_mask_expanded).sum(1) / input_mask_expanded.sum(1)
-            # Normalize
-            emb = emb / np.linalg.norm(emb)
-            return emb.detach().numpy().flatten()
-        else:
-            # sentence-transformers
-            return self._embedding_model.encode(query, normalize_embeddings=True)
+        return self._embedding_model.encode(query, normalize_embeddings=True)
 
     def _encode_skill_text(self, text: str) -> "np.ndarray":
         """Encode skill text using loaded model."""
         import numpy as np
-
-        if self._emb_mode == "onnx":
-            tokens = self._emb_tokenizer(
-                text, padding=True, truncation=True, max_length=512,
-                return_tensors="pt",
-            )
-            import torch
-            outputs = self._embedding_model(**tokens)
-            attention_mask = tokens["attention_mask"]
-            token_embeddings = outputs.last_hidden_state
-            input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-            emb = (token_embeddings * input_mask_expanded).sum(1) / input_mask_expanded.sum(1)
-            emb = emb / np.linalg.norm(emb)
-            return emb.detach().numpy().flatten()
-        else:
-            return self._embedding_model.encode(text, normalize_embeddings=True)
+        return self._embedding_model.encode(text, normalize_embeddings=True)
 
     def embedding_search(self, query: str, top_k: int = 20) -> list[QueryResult]:
         """Semantic search using local embeddings. Falls back to BM25 if unavailable."""
@@ -258,7 +183,6 @@ class SkillRetriever:
             return []
         try:
             self._load_embedding_model()
-            logger.debug("Embedding model loaded, mode=%s", self._emb_mode)
             if self._embedding_model is None:
                 logger.info("No embedding model available, falling back to BM25")
                 return self.bm25_search(query, top_k)
