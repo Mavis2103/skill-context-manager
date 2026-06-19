@@ -354,7 +354,135 @@ def create_mcp_server() -> "FastMCP":  # noqa: F821 — lazy import inside fn bo
         engine = FeedbackEngine()
         return engine.get_stats()
 
-    # ── Layer 6: Insights ──────────────────────────────────────────
+    # ── Layer 6: Adaptive Query ──────────────────────────────────
+
+    @mcp.tool()
+    @safe_call
+    def skill_query_adaptive(
+        query: str,
+        max_results: int = 10,
+        method: str = "rrf",
+        session_id: str = "",
+        use_reranker: bool = True,
+    ) -> dict:
+        """Find relevant skills with adaptive result count and cluster diversity.
+
+        Unlike skill_query (fixed top-k), this automatically determines the
+        optimal number of results using the elbow method and groups them
+        by topic cluster for diverse coverage.
+
+        Args:
+            query: Task description (e.g. "deploy app to kubernetes")
+            max_results: Maximum results to return (default: 10)
+            method: Search method — "bm25", "embedding", "hybrid", or "rrf"
+            session_id: Optional session ID for session-aware boosting
+            use_reranker: Whether to use cross-encoder reranking (default: true)
+        """
+        from .adaptive import adaptive_query, SkillClusterer
+
+        retriever = SkillRetriever()
+        reranker = SkillReranker()
+
+        start = time.time()
+
+        # Stage 1: Retrieve candidates
+        if method == "rrf":
+            results = retriever.rrf_search(query, top_k=max_results * 4)
+        elif method == "bm25":
+            results = retriever.bm25_search(query, top_k=max_results * 4)
+        elif method == "embedding":
+            results = retriever.embedding_search(query, top_k=max_results * 4)
+        else:
+            results = retriever.hybrid_search(query, top_k=max_results * 4)
+
+        # Session boost
+        if session_id:
+            from .session import SessionTracker
+            tracker = SessionTracker()
+            recent = tracker.get_recent_skills(session_id)
+            if recent:
+                results = retriever.apply_session_boost(results, recent, boost=0.5)
+
+        # Feedback weights
+        from .feedback import FeedbackEngine
+        feedback = FeedbackEngine()
+        results = feedback.apply_weights(results)
+
+        # Rerank
+        if use_reranker and len(results) > 1:
+            results = reranker.rerank(query, results, top_k=max_results * 2)
+
+        # Stage 2: Adaptive selection via elbow
+        adaptive_out = adaptive_query(
+            results, min_results=1, max_results=max_results
+        )
+
+        if not adaptive_out["results"]:
+            elapsed_ms = (time.time() - start) * 1000
+            return {
+                "query": query,
+                "mode": "adaptive",
+                "latency_ms": round(elapsed_ms, 1),
+                "message": adaptive_out["message"],
+                "results": [],
+                "adaptive_k": 0,
+                "clusters": [],
+            }
+
+        # Stage 3: Cluster diversity
+        clusterer = SkillClusterer(db_path=retriever.db_path)
+        clusterer.load_embeddings()
+        diverse = clusterer.filter_to_diverse(
+            adaptive_out["results"],
+            top_k=len(adaptive_out["results"]),
+        )
+
+        # Build cluster overview
+        labels = clusterer.cluster_all()
+        seen_clusters: dict[int, set[str]] = {}
+        for r in diverse:
+            cid = labels.get(r.skill.name, -1)
+            if cid not in seen_clusters:
+                seen_clusters[cid] = set()
+            seen_clusters[cid].add(r.skill.name)
+
+        cluster_overview = []
+        for cid, members in seen_clusters.items():
+            info = clusterer.get_cluster_info(cid, list(members))
+            cluster_overview.append({
+                "cluster_id": info["cluster_id"],
+                "size": info["size"],
+                "topic": info["representative"],
+            })
+
+        elapsed_ms = (time.time() - start) * 1000
+
+        return {
+            "query": query,
+            "mode": "adaptive",
+            "latency_ms": round(elapsed_ms, 1),
+            "adaptive_k": adaptive_out["adaptive_k"],
+            "elbow_found": adaptive_out["elbow_found"],
+            "score_range": adaptive_out["score_range"],
+            "message": adaptive_out["message"],
+            "clusters": cluster_overview,
+            "results": [
+                {
+                    "name": r.skill.name,
+                    "description": r.skill.description,
+                    "score": round(r.score, 4),
+                    "method": r.retrieval_method,
+                    "category": r.skill.category,
+                    "tags": r.skill.tags,
+                    "token_cost_metadata": r.skill.token_cost_metadata,
+                    "token_cost_body": r.skill.token_cost_body,
+                    "cluster_label": labels.get(r.skill.name, -1),
+                }
+                for r in diverse
+            ],
+        }
+
+    # ── Layer 7: Insights ──────────────────────────────────────────
 
     @mcp.tool()
     @safe_call
