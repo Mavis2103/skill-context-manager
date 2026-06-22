@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-06-22 — Lint Cleanup + Docs Consistency
+
+### Fixed
+- **Version mismatch** — `__init__.py` now matches `pyproject.toml` (0.7.1).
+- **Ruff lint issues** — Removed unused `json` imports in `adaptive.py` and `ltr.py`; added missing `SkillGraph` import in `ltr.py`; removed unnecessary `np` import and return annotation in `retriever.py`.
+- **ARCHITECTURE.md outdated** — Storage layer table referenced 4 separate DBs (index.db, sessions.db, feedback.db, usage.db) but code uses a single shared `scm.db` since v0.5.0. Data flow diagram showed "Hybrid (0.3+0.7)" but RRF is the default since v0.7.0.
+
+### Changed
+- **README install docs** — Clarified 3-level install options (BM25 / `scm[light]` / `scm[full]`); dev install shows alternatives with `or` comments; install now uses GitHub URL with zsh quoting note.
+- Version bumped to **0.7.2**.
+
 ## [0.7.1] - 2026-06-19 — Remove Broken ONNX int8 Code Path
 
 ### Removed
@@ -298,20 +309,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History (Reference)
 
-|| Version | Date       | Type   | Highlights |
-||---------|-----------|--------|------------|
-|| 0.6.2   | 2026-06-19 | Patch  | Graceful YAML parsing (unquoted colons in frontmatter) |
-|| 0.6.1   | 2026-06-19 | Patch  | Auto-detect `.agents/skills/` global skills dir |
-|| 0.6.0   | 2026-06-19 | Minor  | Index safety (skip hidden/noise dirs), auto-detect skill dirs, progress |
-|| 0.5.0   | 2026-06-19 | Minor  | Install dir ~/.scm/, DB under ~/.scm/db/, package rename to scm |
-|| 0.4.0   | 2026-06-19 | Minor  | Agent auto-detection, install.sh fixes, `--all`/`--force-all` split |
-|| 0.3.1   | 2026-06-19 | Patch  | Zed config fix, ruff lint fixes, expanded skill dirs |
-|| 0.3.0   | 2026-06-19 | Minor  | Multi-agent MCP setup registry, 13 platforms, bug fixes |
-|| 0.2.2   | 2026-06-18 | Minor  | scm mcp setup CLI, uv-first install, README restructured |
-|| 0.2.1   | 2026-06-18 | Patch  | 16 bug fixes, 24 regression tests |
-|| 0.2.0   | 2026-06-18 | Minor  | Initial public release, MCP server |
+||| Version | Date       | Type   | Highlights |
+|||---------|-----------|--------|------------|
+||| 0.7.2   | 2026-06-22 | Patch  | Lint cleanup, README docs fix, ARCHITECTURE.md sync |
+||| 0.7.1   | 2026-06-19 | Patch  | Remove broken ONNX int8 code path |
+||| 0.7.0   | 2026-06-19 | Minor  | MiniLM, RRF, adaptive retrieval, knowledge graph |
+||| 0.6.2   | 2026-06-19 | Patch  | Graceful YAML parsing (unquoted colons in frontmatter) |
+||| 0.6.1   | 2026-06-19 | Patch  | Auto-detect `.agents/skills/` global skills dir |
+||| 0.6.0   | 2026-06-19 | Minor  | Index safety (skip hidden/noise dirs), auto-detect skill dirs, progress |
+||| 0.5.0   | 2026-06-19 | Minor  | Install dir ~/.scm/, DB under ~/.scm/db/, package rename to scm |
+||| 0.4.0   | 2026-06-19 | Minor  | Agent auto-detection, install.sh fixes, `--all`/`--force-all` split |
+||| 0.3.1   | 2026-06-19 | Patch  | Zed config fix, ruff lint fixes, expanded skill dirs |
+||| 0.3.0   | 2026-06-19 | Minor  | Multi-agent MCP setup registry, 13 platforms, bug fixes |
+||| 0.2.2   | 2026-06-18 | Minor  | scm mcp setup CLI, uv-first install, README restructured |
+||| 0.2.1   | 2026-06-18 | Patch  | 16 bug fixes, 24 regression tests |
+||| 0.2.0   | 2026-06-18 | Minor  | Initial public release, MCP server |
 
-[Unreleased]: https://github.com/Mavis2103/skill-context-manager/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/Mavis2103/skill-context-manager/compare/v0.7.2...HEAD
+[0.7.2]: https://github.com/Mavis2103/skill-context-manager/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/Mavis2103/skill-context-manager/compare/v0.7.0...v0.7.1
 [0.6.2]: https://github.com/Mavis2103/skill-context-manager/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Mavis2103/skill-context-manager/compare/v0.6.0...v0.6.1

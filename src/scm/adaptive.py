@@ -6,7 +6,6 @@ groups skills by similarity via DBSCAN, and ensures cluster diversity.
 
 from __future__ import annotations
 
-import json
 import logging
 from math import isclose
 from pathlib import Path

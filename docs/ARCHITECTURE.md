@@ -50,8 +50,8 @@ User Request
 ┌─────────────────────────────────────────────────┐
 │ 2. Stage 1: Retrieval (top 20)                   │
 │    ┌──────────┐   ┌──────────┐   ┌──────────┐   │
-│    │  BM25    │ + │Embedding │ = │  Hybrid  │   │
-│    │ (FTS5)   │   │ (cosine) │   │ (0.3+0.7)│   │
+│    │  BM25    │ + │Embedding │ = │  RRF     │   │
+│    │ (FTS5)   │   │ (cosine) │   │ (k=60)   │   │
 │    └──────────┘   └──────────┘   └──────────┘   │
 └─────────────────────┬───────────────────────────┘
                       │
@@ -83,11 +83,8 @@ User Request
 
 ### SQLite Databases
 | Database | Purpose | Tables |
-|----------|---------|--------|
-| `index.db` | Skill index | `skills`, `skills_fts` (FTS5), `skill_relations` |
-| `sessions.db` | Session state | `sessions`, `session_skills` |
-| `feedback.db` | Learning data | `feedback`, `skill_weights`, `query_patterns` |
-| `usage.db` | Analytics | `usage_events`, `daily_stats` |
+||----------|---------|--------|
+|| `scm.db` (shared) | Single shared database | `skills`, `skills_fts` (FTS5), `sessions`, `session_skills`, `feedback`, `skill_weights`, `query_patterns`, `usage_events`, `daily_stats` |
 
 ### FTS5 for BM25
 - SQLite FTS5 provides zero-dependency full-text search

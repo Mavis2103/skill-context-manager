@@ -171,9 +171,8 @@ class SkillRetriever:
         """Encode query using loaded model. Returns normalized embedding."""
         return self._embedding_model.encode(query, normalize_embeddings=True)
 
-    def _encode_skill_text(self, text: str) -> "np.ndarray":
+    def _encode_skill_text(self, text: str):
         """Encode skill text using loaded model."""
-        import numpy as np
         return self._embedding_model.encode(text, normalize_embeddings=True)
 
     def embedding_search(self, query: str, top_k: int = 20) -> list[QueryResult]:
