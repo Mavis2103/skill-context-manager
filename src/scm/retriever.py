@@ -181,7 +181,11 @@ class SkillRetriever:
             if np.__version__.startswith("2."):
                 self._model = None
                 return None
-            from sentence_transformers import SentenceTransformer
+            try:
+                from sentence_transformers import SentenceTransformer
+            except ImportError:
+                self._model = None
+                return None
             self._model = SentenceTransformer("all-MiniLM-L6-v2")
         return self._model
 
@@ -224,7 +228,7 @@ class SkillRetriever:
                     ))
             return results
         except Exception:
-            logger.warning("Embedding search unavailable, falling back to BM25", exc_info=True)
+            logger.info("Embedding search unavailable, falling back to BM25")
             return self.bm25_search(query, top_k=top_k)
 
     def rrf_search(self, query: str, top_k: int = 20,
