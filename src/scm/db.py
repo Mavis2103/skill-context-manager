@@ -49,9 +49,25 @@ def _enable_wal(conn: sqlite3.Connection):
     conn.execute("PRAGMA busy_timeout=5000")
 
 
+SCHEMA_VERSION = 2  # bump when tables change — migrate below
+
+
+def _check_schema_version(conn: sqlite3.Connection):
+    """Compare and migrate schema version (graphify versioned-cache pattern)."""
+    version = conn.execute("PRAGMA user_version").fetchone()[0]
+    if version == 0:
+        # Fresh DB — set version.
+        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+    elif version < SCHEMA_VERSION:
+        # Future: add migration steps here when bumping SCHEMA_VERSION.
+        # For now just update the version stamp.
+        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+
+
 def init_schema(db_path: Optional[Path] = None):
     """Create all SCM tables if they don't exist. Idempotent."""
     with connect(db_path) as conn:
+        _check_schema_version(conn)
         # ── Skills index ──
         conn.execute("""
             CREATE TABLE IF NOT EXISTS skills (
@@ -65,8 +81,7 @@ def init_schema(db_path: Optional[Path] = None):
                 token_cost_body INTEGER DEFAULT 0,
                 use_count INTEGER DEFAULT 0,
                 success_rate REAL DEFAULT 0.0,
-                last_used TEXT,
-                embedding BLOB
+                last_used TEXT
             )
         """)
         conn.execute("""

@@ -1,11 +1,9 @@
-"""Tests for adaptive retrieval — elbow detection and clustering."""
+"""Tests for adaptive retrieval — elbow detection and diverse filtering."""
 
 import tempfile
 from pathlib import Path
 
-import numpy as np
-
-from scm.adaptive import detect_elbow, adaptive_query, SkillClusterer
+from scm.adaptive import detect_elbow, adaptive_query, diverse_filter
 from scm.models import Skill, QueryResult
 
 
@@ -120,32 +118,40 @@ class TestAdaptiveQuery:
         assert low <= high
 
 
-# ── Skill Clusterer ───────────────────────────────────────────
+# ── Diverse Filter ────────────────────────────────────────────
 
 
-class TestSkillClusterer:
-    def test_empty_db(self):
-        """Empty embeddings dict should produce all -1 labels."""
-        with tempfile.TemporaryDirectory() as tmp:
-            db = Path(tmp) / "test.db"
-            clusterer = SkillClusterer(db_path=db)
-            clusterer._embeddings = {}
-            labels = clusterer.cluster_all()
-            assert labels == {}
+class TestDiverseFilter:
+    def test_empty(self):
+        assert diverse_filter([], top_k=5) == []
 
-    def test_single_embedding_no_cluster(self):
-        """Single skill → noise (-1)."""
-        clusterer = SkillClusterer()
-        clusterer._embeddings = {"test": np.array([0.1, 0.2, 0.3])}
-        labels = clusterer.cluster_all()
-        assert labels == {"test": -1}
-
-    def test_filter_to_diverse_empty(self):
-        clusterer = SkillClusterer()
-        assert clusterer.filter_to_diverse([], top_k=5) == []
-
-    def test_filter_to_diverse_single(self):
+    def test_single(self):
         results = make_results([1.20])
-        clusterer = SkillClusterer()
-        filtered = clusterer.filter_to_diverse(results, top_k=5)
+        filtered = diverse_filter(results, top_k=5)
         assert len(filtered) == 1
+
+    def test_deduplicates_by_category(self):
+        # Two skills with same name prefix → only one kept
+        results = [
+            QueryResult(
+                skill=Skill(name="k8s-deploy-prod", description="Prod deploy",
+                            category="devops"),
+                score=1.0,
+                retrieval_method="rrf",
+            ),
+            QueryResult(
+                skill=Skill(name="k8s-deploy-staging", description="Staging deploy",
+                            category="devops"),
+                score=0.9,
+                retrieval_method="rrf",
+            ),
+            QueryResult(
+                skill=Skill(name="pg-backup", description="Backup",
+                            category="databases"),
+                score=0.8,
+                retrieval_method="rrf",
+            ),
+        ]
+        filtered = diverse_filter(results, top_k=5)
+        # Should keep first (highest score) in each category, then dedup prefix
+        assert len(filtered) >= 2  # At least one devops + one databases

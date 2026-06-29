@@ -11,7 +11,6 @@ from pathlib import Path
 from . import __version__
 from .indexer import SkillIndexer
 from .retriever import SkillRetriever
-from .reranker import SkillReranker
 from .session import SessionTracker
 from .optimizer import SkillOptimizer
 from .feedback import FeedbackEngine, FeedbackRecord
@@ -53,16 +52,12 @@ Examples:
     p_query.add_argument("query", nargs="*", help="Task description")
     p_query.add_argument("--query", dest="query_kw", type=str, help="Task description (alt)")
     p_query.add_argument("--top", type=int, default=5, help="Number of results (default: 5)")
-    p_query.add_argument("--method", choices=["bm25", "embedding", "hybrid", "rrf"],
+    p_query.add_argument("--method", choices=["bm25", "rrf"],
                          default="rrf", help="Search method (default: rrf)")
     p_query.add_argument("--format", choices=["text", "json"], default="text",
                          help="Output format (default: text)")
     p_query.add_argument("--session", type=str, default="",
                          help="Session ID for session-aware boosting")
-    p_query.add_argument("--rerank", action="store_true", default=True,
-                         help="Use cross-encoder reranking (default: true)")
-    p_query.add_argument("--no-rerank", dest="rerank", action="store_false",
-                         help="Skip reranking")
 
     # ── session ──
     p_session = sub.add_parser("session", help="Manage skill usage sessions")
@@ -114,6 +109,9 @@ Examples:
     # ── stats ──
     sub.add_parser("stats", help="Show indexing statistics")
 
+    # ── clean-models ──
+    p_clean = sub.add_parser("clean-models", help="Remove local model caches (no longer needed)")
+
     # ── insights ──
     p_ins = sub.add_parser("insights", help="Show usage insights")
     p_ins.add_argument("--days", type=int, default=30, help="Days to analyze")
@@ -159,6 +157,7 @@ def cli():
         "optimize": cmd_optimize,
         "feedback": cmd_feedback,
         "stats": cmd_stats,
+        "clean-models": cmd_clean_models,
         "insights": cmd_insights,
         "mcp": cmd_mcp,
     }
@@ -214,18 +213,13 @@ def cmd_query(args):
         return
 
     retriever = SkillRetriever()
-    reranker = SkillReranker()
 
     start = time.time()
 
     if args.method == "bm25":
         results = retriever.bm25_search(query, top_k=args.top * 4)
-    elif args.method == "embedding":
-        results = retriever.embedding_search(query, top_k=args.top * 4)
-    elif args.method == "rrf":
-        results = retriever.rrf_search(query, top_k=args.top * 4)
     else:
-        results = retriever.hybrid_search(query, top_k=args.top * 4)
+        results = retriever.rrf_search(query, top_k=args.top * 4)
 
     if args.session:
         session_tracker = SessionTracker()
@@ -235,9 +229,6 @@ def cmd_query(args):
 
     feedback = FeedbackEngine()
     results = feedback.apply_weights(results)
-
-    if args.rerank and len(results) > 1:
-        results = reranker.rerank(query, results, top_k=args.top)
 
     elapsed = (time.time() - start) * 1000
 
@@ -425,6 +416,29 @@ def cmd_stats(args=None):
     if fb_stats['total_feedback'] > 0:
         print(f"\n   Feedback: {fb_stats['total_feedback']} records, "
               f"{fb_stats['success_rate']:.0%} success rate")
+
+
+def cmd_clean_models(args=None):
+    """Remove local model caches (no longer needed in v0.8)."""
+    import shutil
+    models_dir = Path.home() / ".scm" / "models"
+    if models_dir.exists():
+        try:
+            shutil.rmtree(models_dir)
+            print(f"✅ Removed {models_dir}")
+        except Exception as e:
+            print(f"⚠️  Could not remove {models_dir}: {e}")
+    else:
+        print(f"✓ No model cache at {models_dir}")
+
+    # Also clean any onnx model files in db dir
+    import glob
+    onnx_files = list(Path.home().glob(".scm/db/*.onnx"))
+    for f in onnx_files:
+        f.unlink()
+        print(f"✅ Removed {f}")
+
+    print("✅ v0.8: no local models needed. All search is BM25 + graph.")
 
 
 def cmd_insights(args):

@@ -78,15 +78,8 @@ class TestRetriever:
         results = indexed_skills.bm25_search("test", top_k=5)
         assert len(results) >= 1
 
-    def test_hybrid_search(self, indexed_skills):
-        results = indexed_skills.hybrid_search("backup database postgres", top_k=3)
-        assert len(results) >= 1
-        # pg-backup should be top result
-        assert results[0].skill.name == "pg-backup"
-
     def test_bm25_empty_result(self, indexed_skills):
-        """BM25 (lexical) returns empty for non-matching queries; embedding always
-        returns nearest neighbors — that's expected dense retrieval behavior."""
+        """BM25 (lexical) returns empty for non-matching queries."""
         results = indexed_skills.bm25_search("xyznonexistent", top_k=3)
         assert len(results) == 0
 
@@ -121,37 +114,16 @@ class TestRetriever:
             results = retriever.bm25_search("anything", top_k=5)
             assert len(results) == 0
 
-    def test_embedding_fallback_when_model_missing(self, indexed_skills):
-        """Embedding_search falls back to BM25 when model fails."""
-        from unittest.mock import patch
-
-        # Simulate failure in _embedding_search_inner
-        with patch.object(indexed_skills, '_embedding_search_inner',
-                          side_effect=RuntimeError("Model failure")):
-            results = indexed_skills.embedding_search("kubernetes deploy", top_k=3)
-            assert len(results) >= 1
-            # Should fall back to BM25
-            assert any(r.retrieval_method in ("bm25", "like") for r in results)
-
-    def test_rrf_fusion_returns_diverse_results(self, indexed_skills):
-        """RRF combines BM25 + embedding results."""
+    def test_rrf_returns_diverse_results(self, indexed_skills):
+        """RRF returns BM25 + graph-boosted results."""
         results = indexed_skills.rrf_search("deploy kubernetes", top_k=5)
         assert len(results) > 0
-        assert all(r.retrieval_method == "rrf" for r in results)
-        # Scores should be positive
         assert all(r.score > 0 for r in results)
 
     def test_rrf_empty_query(self, indexed_skills):
         """Empty query returns empty list."""
         results = indexed_skills.rrf_search("", top_k=5)
         assert results == []
-
-    def test_rrf_with_single_method_fallback(self, indexed_skills):
-        """If embedding fails, RRF should still return BM25 results."""
-        indexed_skills._embedding_model = None
-        indexed_skills._emb_mode = None
-        results = indexed_skills.rrf_search("test", top_k=5)
-        assert len(results) > 0
 
     def test_rrf_respects_top_k(self, indexed_skills):
         """RRF returns at most top_k results."""

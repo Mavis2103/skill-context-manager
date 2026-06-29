@@ -296,14 +296,6 @@ class TestLibraryNoPrint:
             # Logged via logger, not printed
             assert any("Directory not found" in r.message for r in caplog.records)
 
-    def test_reranker_does_not_print(self, caplog):
-        from scm.reranker import SkillReranker
-        reranker = SkillReranker()
-        with caplog.at_level(logging.INFO, logger="scm.reranker"):
-            reranker.rerank("test", [], top_k=5)
-        # Either it works (no log) or logs a warning about missing model
-        # What matters: no print() side effects
-
     def test_indexing_with_bad_file_logs_not_prints(self, caplog):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
@@ -362,7 +354,7 @@ class TestEndToEndWorkflow:
 
         # Query
         retriever = SkillRetriever(db_path=db)
-        results = retriever.hybrid_search("deploy to kubernetes", top_k=3)
+        results = retriever.rrf_search("deploy to kubernetes", top_k=3)
         assert len(results) >= 1
         assert results[0].skill.name == "k8s-deploy"
 

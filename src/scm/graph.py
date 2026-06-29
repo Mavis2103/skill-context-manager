@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 import logging
 import math
+import re
+import unicodedata
 from collections import defaultdict
 from pathlib import Path
 from typing import Optional
@@ -24,6 +26,8 @@ class SkillGraph:
     - co_occur: PPMI-weighted undirected (from session usage)
     - content: similarity-weighted undirected (category + tags overlap)
     - feedback: success-weighted undirected (from agent feedback)
+    - text_overlap: Jaccard shingle similarity on name+description
+    - path_shared: skills sharing the same parent directory
 
     At query time, Personalized PageRank (PPR) is run from seed skills
     (session history, query-matched skills) to find related skills.
@@ -45,6 +49,8 @@ class SkillGraph:
             self._build_cooccurrence(conn)
             self._build_content(conn)
             self._build_feedback(conn)
+            self._build_text_overlap(conn)
+            self._build_path_shared(conn)
         self._loaded = True
         logger.info("Graph built: %d nodes, %d edges",
                      len(self._graph),
@@ -173,6 +179,108 @@ class SkillGraph:
 
         if edge_count:
             logger.debug("Feedback co-success edges: %d", edge_count)
+
+    # ── Text overlap from graphify ───────────────────────────────────
+
+    @staticmethod
+    def _shingles(text: str, k: int = 3) -> set[str]:
+        """Normalize text → k-grams (mượn từ graphify dedup.py)."""
+        text = unicodedata.normalize("NFKC", text).casefold()
+        text = re.sub(r"[\W_]+", " ", text).strip()
+        if len(text) < k:
+            return {text} if text else set()
+        return {text[i:i + k] for i in range(len(text) - k + 1)}
+
+    def _build_text_overlap(self, conn):
+        """Text overlap edges via Jaccard shingle similarity.
+
+        Edge = Jaccard(name+description shingles) ≥ 0.3
+        Zero local models — pure string algorithm.
+        """
+        rows = conn.execute(
+            "SELECT name, description FROM skills"
+        ).fetchall()
+
+        skills = {
+            r["name"]: self._shingles(f"{r['name']} {r['description'] or ''}")
+            for r in rows
+        }
+        names = list(skills.keys())
+
+        edge_count = 0
+        for i in range(len(names)):
+            s1 = skills[names[i]]
+            if not s1:
+                continue
+            for j in range(i + 1, len(names)):
+                s2 = skills[names[j]]
+                if not s2:
+                    continue
+                intersection = len(s1 & s2)
+                union = len(s1 | s2)
+                if union > 0 and intersection / union >= 0.3:
+                    sim = round(intersection / union, 4)
+                    self._graph[names[i]].append((names[j], sim, "text_overlap"))
+                    self._graph[names[j]].append((names[i], sim, "text_overlap"))
+                    edge_count += 1
+
+        if edge_count:
+            logger.debug("Text overlap edges: %d", edge_count)
+
+    # ── Path shared edges ────────────────────────────────────────────
+
+    def _build_path_shared(self, conn):
+        """Path-based edges: skills sharing the same directory.
+
+        - Same parent directory → edge weight 0.4
+        - Same grandparent (project root) → edge weight 0.2
+        """
+        rows = conn.execute(
+            "SELECT name, path FROM skills WHERE path IS NOT NULL AND path != ''"
+        ).fetchall()
+
+        # Map directory → skill names
+        parent_map: dict[str, list[str]] = defaultdict(list)
+        grandparent_map: dict[str, list[str]] = defaultdict(list)
+
+        for r in rows:
+            p = Path(r["path"])
+            if len(p.parts) >= 2:
+                parent = str(p.parent)
+                parent_map[parent].append(r["name"])
+            if len(p.parts) >= 3:
+                grandparent = str(p.parent.parent)
+                grandparent_map[grandparent].append(r["name"])
+
+        edge_count = 0
+        # Same parent → 0.4
+        for _, names in parent_map.items():
+            if len(names) >= 2:
+                for i in range(len(names)):
+                    for j in range(i + 1, len(names)):
+                        # Check not already connected with higher weight
+                        existing = [w for n, w, t in self._graph[names[i]]
+                                    if n == names[j] and t in ("co_occur", "text_overlap")]
+                        if existing and max(existing) >= 0.4:
+                            continue
+                        self._graph[names[i]].append((names[j], 0.4, "path_shared"))
+                        self._graph[names[j]].append((names[i], 0.4, "path_shared"))
+                        edge_count += 1
+
+        # Same grandparent → 0.2 (only if not already connected via parent)
+        for _, names in grandparent_map.items():
+            if len(names) >= 2:
+                for i in range(len(names)):
+                    for j in range(i + 1, len(names)):
+                        existing = [n for n, _, _ in self._graph[names[i]]]
+                        if names[j] in existing:
+                            continue
+                        self._graph[names[i]].append((names[j], 0.2, "path_shared"))
+                        self._graph[names[j]].append((names[i], 0.2, "path_shared"))
+                        edge_count += 1
+
+        if edge_count:
+            logger.debug("Path shared edges: %d", edge_count)
 
     def get_neighbors(self, skill_name: str,
                       edge_types: Optional[set[str]] = None) -> list[tuple[str, float, str]]:

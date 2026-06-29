@@ -59,15 +59,16 @@ class SessionTracker:
         """Record that a skill was used."""
         if not skill_name or not skill_name.strip():
             return
-        if not session_id:
-            return
         sid = session_id
+        if not sid:
+            return
         timestamp = utcnow().isoformat()
+        # ponytail: success=None writes SQL NULL, not 0 — keeps Bayesian stats clean
         with self._conn() as conn:
             conn.execute("""
                 INSERT INTO session_skills (session_id, skill_name, query, timestamp, success)
                 VALUES (?, ?, ?, ?, ?)
-            """, (sid, skill_name.strip(), query, timestamp, 1 if success else 0))
+            """, (sid, skill_name.strip(), query, timestamp, 1 if success else (None if success is None else 0)))
             conn.commit()
         if self._active_session and self._active_session.session_id == sid:
             self._active_session.record_skill_use(skill_name, query, success)
@@ -101,9 +102,15 @@ class SessionTracker:
     def get_recent_skills(self, session_id: str, n: int = 5) -> list[str]:
         """Get the N most recently used skills in this session."""
         with self._conn() as conn:
+            # ponytail: anti-join for groupwise max — safer than DISTINCT+ORDER BY on non-selected column
             rows = conn.execute("""
-                SELECT DISTINCT skill_name FROM session_skills
-                WHERE session_id = ? ORDER BY timestamp DESC LIMIT ?
+                SELECT s.skill_name FROM session_skills s
+                WHERE s.session_id = ? AND NOT EXISTS (
+                    SELECT 1 FROM session_skills s2
+                    WHERE s2.session_id = s.session_id AND s2.skill_name = s.skill_name
+                    AND s2.rowid > s.rowid
+                )
+                ORDER BY s.timestamp DESC LIMIT ?
             """, (session_id, n)).fetchall()
             return [r[0] for r in rows]
 

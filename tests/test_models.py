@@ -124,10 +124,13 @@ Body text
         skill = Skill(name="test", description="test desc")
         assert skill.metadata_str == "test: test desc"
 
-    def test_to_dict_excludes_embedding(self):
-        skill = Skill(name="test", description="test", embedding=[0.1, 0.2])
+    def test_to_dict_basic_fields(self):
+        skill = Skill(name="test", description="test desc")
         d = skill.to_dict()
-        assert "embedding" not in d
+        assert "name" in d
+        assert "description" in d
+        assert "category" in d
+        assert "tags" in d
         assert d["name"] == "test"
 
 

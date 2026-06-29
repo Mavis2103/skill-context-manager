@@ -1,6 +1,6 @@
 [project]
 name = "scm"
-version = "0.7.2"
+version = "0.8.0"
 description = "Context-aware skill selection for AI agents — solves 'too many skills' problem"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -11,21 +11,13 @@ authors = [
 
 dependencies = [
     # Core: lightweight runtime deps.
-    # - mcp: the MCP server is a headline feature, so the SDK ships by default
-    # - PyYAML: robust SKILL.md frontmatter parsing (naive fallback exists but is lossy)
     "mcp>=1.0",
     "PyYAML>=6.0",
+    # ponytail: pin numpy<2 for sentence-transformers compatibility
+    "numpy>=1.21,<2",
 ]
 
 [project.optional-dependencies]
-full = [
-    "sentence-transformers>=3.0,<4.0",
-    "transformers>=4.40,<5.0",
-    "torch>=2.0,<3.0",
-]
-light = [
-    "sentence-transformers>=3.0,<4.0",
-]
 http = [
     # Required only for `scm mcp start --http` (HTTP/SSE transport)
     "uvicorn>=0.30",

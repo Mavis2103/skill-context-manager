@@ -7,7 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.7.2] - 2026-06-22 — Lint Cleanup + Docs Consistency
+## [0.8.0] - 2026-06-29 — Entity Dedup + Path Security + MinHash RRF
+
+### Added
+- **Entity dedup pipeline** (`src/scm/dedup.py`) — MinHash (128-perm) / LSH / Jaro-Winkler for fuzzy skill dedup. Confidence levels: IDENTICAL / CONFIRMED / CANDIDATE / UNIQUE. Ported from graphify.
+- **Security module** (`src/scm/security.py`) — `validate_skill_dir()` path-traversal guard + `sanitize_name()` control-char strip. Wired into `mcp_server.py` `skill_index` + `skill_optimize` tools.
+- **Graph edge types** — `text_overlap` (Jaccard k=3 shingle) and `path_shared` (same parent directory) for richer skill-proximity queries. Both are deterministic EXTRACTED edges.
+- **`skill_index` MCP tool** — new `dedup` param (default: True) runs dedup after indexing.
+- **`skill_dedup` MCP tool** — on-demand fuzzy dedup over the DB.
+- **`skill_neighbors` MCP tool** — graph-proximity lookup with edge-type filter.
+- **20 new tests** — dedup, indexer dedup, graph edge types.
+
+### Removed
+- **LambdaMART LTR** (`src/scm/ltr.py`) — scaffolding was never trained; feature extraction (25 features) remained dead code. Removed with `test_ltr.py`.
+- **Cross-encoder reranker** (`src/scm/reranker.py`, 93 LOC) — never production-wired; `[full]` install variant removed.
+- **Trigram prefilter** (`src/scm/trigram.py`, 111 LOC) — dead code not imported anywhere; FTS5 handles trigram search natively.
+
+### Changed
+- **Retriever simplified** — `rrf_search` now fuses BM25 + embedding (all-MiniLM-L6-v2) via real RRF with `k=60`. Clean fallback to BM25-only when numpy≥2. Modular internal helpers extracted from monolithic method. ONNX code path fully removed.
+- **`adaptive.py`** — dedup-by-category in `diverse_filter()`; simplified elbow detection.
+- **`graph.py`** — content-similarity edge via direct category+tag overlap (was cosine distance on embeddings); `_build_text_overlap()` and `_build_path_shared()` added.
+- **`indexer.py`** — `dedup_skills()` method for DB-level fuzzy dedup.
+- **`mcp_server.py`** — removed `use_reranker` parameter; added `skill_neighbors` + `skill_dedup` tools; `skill_optimize` uses security validation.
+- **`models.py`** — removed `Skill.embedding` field (not persisted).
+- **`db.py`** — removed `skills.embedding` BLOB column; SCHEMA_VERSION guard with PRAGMA user_version.
+- **`session.py`** — `success=None` writes SQL NULL (was 0); `get_recent_skills` uses anti-join groupwise max for deterministic ordering.
+- **`pyproject.toml`** — removed `[light]` and `[full]` optional extras; core dependencies slimmed to `mcp>=1.0` + `PyYAML>=6.0`.
+- **Test suite**: 168 → **186 tests** (all passing, ruff clean).
+- Version bumped to **0.8.0**.
 
 ### Fixed
 - **Version mismatch** — `__init__.py` now matches `pyproject.toml` (0.7.1).
@@ -311,7 +338,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ||| Version | Date       | Type   | Highlights |
 |||---------|-----------|--------|------------|
-||| 0.7.2   | 2026-06-22 | Patch  | Lint cleanup, README docs fix, ARCHITECTURE.md sync |
+|||| 0.8.0   | 2026-06-29 | Minor  | Entity dedup, path security, MinHash RRF, graph edges, deleted dead code |
+|||| 0.7.2   | 2026-06-22 | Patch  | Lint cleanup, README docs fix, ARCHITECTURE.md sync |
 ||| 0.7.1   | 2026-06-19 | Patch  | Remove broken ONNX int8 code path |
 ||| 0.7.0   | 2026-06-19 | Minor  | MiniLM, RRF, adaptive retrieval, knowledge graph |
 ||| 0.6.2   | 2026-06-19 | Patch  | Graceful YAML parsing (unquoted colons in frontmatter) |
@@ -325,7 +353,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ||| 0.2.1   | 2026-06-18 | Patch  | 16 bug fixes, 24 regression tests |
 ||| 0.2.0   | 2026-06-18 | Minor  | Initial public release, MCP server |
 
-[Unreleased]: https://github.com/Mavis2103/skill-context-manager/compare/v0.7.2...HEAD
+[Unreleased]: https://github.com/Mavis2103/skill-context-manager/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/Mavis2103/skill-context-manager/compare/v0.7.2...v0.8.0
 [0.7.2]: https://github.com/Mavis2103/skill-context-manager/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/Mavis2103/skill-context-manager/compare/v0.7.0...v0.7.1
 [0.6.2]: https://github.com/Mavis2103/skill-context-manager/compare/v0.6.1...v0.6.2

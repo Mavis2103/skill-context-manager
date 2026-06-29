@@ -1,17 +1,14 @@
-"""Adaptive retrieval — dynamic result count, clustering, and diverse selection.
+"""Adaptive retrieval — dynamic result count and diverse selection.
 
 Beyond fixed top-k: determines optimal result count per query via elbow method,
-groups skills by similarity via DBSCAN, and ensures cluster diversity.
+and ensures topic diversity via category-based dedup.
 """
 
 from __future__ import annotations
 
 import logging
 from math import isclose
-from pathlib import Path
 from typing import Optional
-
-import numpy as np
 
 from .models import QueryResult
 
@@ -119,130 +116,41 @@ def adaptive_query(
     }
 
 
-# ── DBSCAN Clustering ────────────────────────────────────────────
+# ── Category-based Diverse Filter ───────────────────────────────
 
-class SkillClusterer:
-    """Cluster skills by embedding similarity using DBSCAN.
+def diverse_filter(
+    results: list[QueryResult],
+    top_k: int = 5,
+) -> list[QueryResult]:
+    """Re-rank results to ensure category diversity.
 
-    Provides diverse skill selection: instead of returning top-k skills
-    (which may all be from 1-2 clusters), returns at most 1 skill per
-    cluster for better topic coverage.
+    At most 2 skills per category. Prevents "variant pollution" where
+    kubernetes-deploy-v1, kubernetes-deploy-v2 all appear in the same set.
+
+    Args:
+        results: Ranked list of QueryResult.
+        top_k: Maximum results to return.
+
+    Returns:
+        Re-ranked list with category diversity.
     """
+    if not results or top_k <= 1:
+        return results
 
-    def __init__(self, db_path: Optional[Path] = None, eps: float = 0.5,
-                 min_samples: int = 2):
-        self.db_path = db_path
-        self.eps = eps
-        self.min_samples = min_samples
-        self._embeddings: dict[str, np.ndarray] = {}
+    selected = []
+    selected_names: set[str] = set()
+    category_count: dict[str, int] = {}
 
-    def load_embeddings(self):
-        """Load skill embeddings from database."""
-        from .db import connect
-        with connect(self.db_path) as conn:
-            rows = conn.execute(
-                "SELECT name, embedding FROM skills WHERE embedding IS NOT NULL"
-            ).fetchall()
-            self._embeddings = {}
-            for r in rows:
-                emb_bytes = r["embedding"]
-                if emb_bytes:
-                    self._embeddings[r["name"]] = np.frombuffer(
-                        emb_bytes, dtype=np.float32
-                    )
-        logger.debug("Loaded %d embeddings", len(self._embeddings))
+    for r in results:
+        if len(selected) >= top_k:
+            break
+        cat = r.skill.category or "uncategorized"
+        count = category_count.get(cat, 0)
+        if count >= 2:
+            continue
+        if r.skill.name not in selected_names:
+            selected.append(r)
+            selected_names.add(r.skill.name)
+            category_count[cat] = count + 1
 
-    def cluster_all(self) -> dict[str, int]:
-        """Run DBSCAN on all loaded embeddings.
-
-        Returns:
-            {skill_name: cluster_id} — cluster -1 = noise/unclustered.
-        """
-        if len(self._embeddings) < 2:
-            return {name: -1 for name in self._embeddings}
-
-        try:
-            from sklearn.cluster import DBSCAN
-        except ImportError:
-            logger.warning("scikit-learn not installed, skipping clustering")
-            return {name: -1 for name in self._embeddings}
-
-        names = list(self._embeddings.keys())
-        matrix = np.array([self._embeddings[n] for n in names])
-
-        clustering = DBSCAN(
-            eps=self.eps, min_samples=self.min_samples, metric="cosine"
-        ).fit(matrix)
-
-        return dict(zip(names, clustering.labels_.tolist()))
-
-    def get_cluster_info(self, cluster_id: int, skill_names: list[str]) -> dict:
-        """Get cluster metadata: size, representative, members."""
-        members = [n for n in skill_names if n in self._embeddings]
-        if not members:
-            return {"cluster_id": cluster_id, "size": 0, "representative": "", "members": []}
-
-        # Representative = skill closest to centroid
-        embs = np.array([self._embeddings[m] for m in members])
-        centroid = embs.mean(axis=0)
-        norm = np.linalg.norm(centroid)
-        if norm > 0:
-            centroid = centroid / norm
-        sims = embs @ centroid
-        rep_idx = int(np.argmax(sims))
-
-        return {
-            "cluster_id": cluster_id,
-            "size": len(members),
-            "representative": members[rep_idx],
-            "members": members,
-        }
-
-    def filter_to_diverse(self, results: list[QueryResult],
-                          top_k: int = 5) -> list[QueryResult]:
-        """Re-rank results to ensure cluster diversity.
-
-        Returns at most 1 result per cluster until top_k is reached,
-        then fills remaining slots from the best overall results.
-
-        This solves the "variant pollution" problem where kubernetes-deploy-v2,
-        kubernetes-deploy-v3 all appear in the same result set.
-        """
-        if not results or top_k <= 1:
-            return results
-
-        labels = self.cluster_all()
-
-        # Group results by cluster, keeping only the best per cluster
-        cluster_best: dict[int, list[QueryResult]] = {}
-        seen_order: list[int] = []
-
-        for r in results:
-            cid = labels.get(r.skill.name, -1)
-            if cid not in cluster_best:
-                cluster_best[cid] = []
-                seen_order.append(cid)
-            cluster_best[cid].append(r)
-
-        # Take top-1 from each cluster in rank order
-        selected = []
-        selected_names = set()
-
-        for cid in seen_order:
-            if len(selected) >= top_k:
-                break
-            best = cluster_best[cid][0]
-            if best.skill.name not in selected_names:
-                selected.append(best)
-                selected_names.add(best.skill.name)
-
-        # If still under top_k, fill with next-best from any cluster
-        if len(selected) < top_k:
-            for r in results:
-                if r.skill.name not in selected_names:
-                    selected.append(r)
-                    selected_names.add(r.skill.name)
-                if len(selected) >= top_k:
-                    break
-
-        return selected[:top_k]
+    return selected[:top_k]

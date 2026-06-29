@@ -9,6 +9,7 @@ from typing import Callable, Optional
 
 from .db import connect, init_schema
 from .models import Skill
+from .dedup import deduplicate_skills
 
 logger = logging.getLogger("scm.indexer")
 
@@ -106,8 +107,27 @@ class SkillIndexer:
         return count
 
     def _upsert_skill(self, skill: Skill):
-        """Insert or update a skill in the database + FTS5 index."""
+        """Insert or update a skill in the database + FTS5 index.
+
+        Ghost-merge (graphify build.py pattern): when a skill with the same
+        name already exists, merge attributes — keep longest description,
+        union tags, preserve richer body.
+        """
         with self._conn() as conn:
+            existing = conn.execute(
+                "SELECT description, body, tags FROM skills WHERE name = ?",
+                (skill.name,)
+            ).fetchone()
+
+            if existing:
+                # Ghost-merge: description/body are last-write-wins (latest file is
+                # authoritative), tags are union (cumulative metadata). Pattern from
+                # graphify build.py where AST nodes are canonical base and semantic
+                # nodes overlay richer attributes.
+                existing_tags = set(json.loads(existing["tags"] or "[]"))
+                new_tags = existing_tags | set(skill.tags)
+                skill.tags = sorted(new_tags)
+
             conn.execute("""
                 INSERT INTO skills (name, description, body, path, category, tags,
                                     token_cost_meta, token_cost_body, use_count, success_rate)
@@ -156,6 +176,46 @@ class SkillIndexer:
             else:
                 rows = conn.execute("SELECT * FROM skills ORDER BY use_count DESC").fetchall()
             return [self._row_to_skill(r) for r in rows]
+
+    def dedup_skills(self) -> dict:
+        """Run dedup on all indexed skills. Merges fuzzy duplicates.
+
+        Returns:
+            dict with dedup results (total_removed, groups, exact, fuzzy).
+        """
+        skills = self.list_skills()
+        if len(skills) <= 1:
+            return {"total": len(skills), "total_removed": 0, "groups": []}
+
+        before = len(skills)
+        deduped = deduplicate_skills(skills)
+
+        if before == len(deduped):
+            return {"total": before, "total_removed": 0, "groups": []}
+
+        # Find which names were merged: check which names in deduped
+        # are not from the original (fuzzy merge replaced a name)
+        deduped_names = {s.name: s for s in deduped}
+        removed_names: list[str] = []
+        for s in skills:
+            if s.name not in deduped_names:
+                removed_names.append(s.name)
+
+        with self._conn() as conn:
+            for name in removed_names:
+                row = conn.execute(
+                    "SELECT rowid FROM skills WHERE name = ?", (name,)
+                ).fetchone()
+                if row:
+                    conn.execute("DELETE FROM skills_fts WHERE rowid = ?", (row[0],))
+                    conn.execute("DELETE FROM skills WHERE name = ?", (name,))
+            conn.commit()
+
+        return {
+            "total": before,
+            "total_removed": before - len(deduped),
+            "groups": [] if not removed_names else [{"removed": removed_names}],
+        }
 
     def stats(self) -> dict:
         """Return indexing statistics."""

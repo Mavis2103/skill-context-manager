@@ -38,7 +38,7 @@ class TestUsageTracker:
     def test_retrieval_methods(self, tracker):
         tracker.record_event("s1", "q1", "bm25", 0.5)
         tracker.record_event("s2", "q2", "hybrid", 0.6)
-        tracker.record_event("s3", "q3", "embedding", 0.7)
+        tracker.record_event("s3", "q3", "rrf", 0.7)
         insights = tracker.get_insights(days=30)
         assert "bm25" in insights["retrieval_methods"]
         assert insights["retrieval_methods"]["bm25"] == 1

@@ -27,6 +27,7 @@ from typing import Callable
 ALLOWED_TOOLS = [
     "skill_query",
     "skill_index",
+    "skill_dedup",
     "skill_stats",
     "skill_session_start",
     "skill_session_use",

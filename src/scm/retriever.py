@@ -1,4 +1,4 @@
-"""Skill retrieval engine — BM25 + embedding-based search."""
+"""Skill retrieval engine — BM25 + graph-boosted search (zero local models)."""
 
 from __future__ import annotations
 
@@ -15,18 +15,10 @@ logger = logging.getLogger("scm.retriever")
 
 
 class SkillRetriever:
-    """Retrieve relevant skills using BM25, embedding similarity, or hybrid search."""
+    """Retrieve relevant skills using FTS5 BM25, with session + graph boosting."""
 
-    # Default model — override via env or config
-    DEFAULT_EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-    # INSTRUCTIONS: To switch back to BGE-base, change the line above to
-    # "BAAI/bge-base-en-v1.5" and clear cached embeddings from DB.
-
-    def __init__(self, db_path: Optional[Path] = None,
-                 embedding_model: Optional[str] = None):
+    def __init__(self, db_path: Optional[Path] = None):
         self.db_path = db_path
-        self._embedding_model = None  # Lazy load
-        self._model_name = embedding_model or self.DEFAULT_EMBEDDING_MODEL
         init_schema(db_path)
 
     def _conn(self):
@@ -60,6 +52,18 @@ class SkillRetriever:
                             continue
                         seen_names.add(r["name"])
                         score = max(0, 1.0 - float(r["rank"]) / 100.0)
+                        # ponytail: cap FTS5 score to 0.85 when no query term
+                        # appears in name (exact match *or* 6-char prefix) —
+                        # body-text-noise results should not outrank LIKE
+                        # name/description matches (score 0.9).
+                        q_lower = query.lower()
+                        name_lower = r["name"].lower()
+                        _has_hint = any(
+                            term in name_lower or term[:6] in name_lower
+                            for term in q_lower.split()
+                        )
+                        if not _has_hint:
+                            score = min(score, 0.85)
                         results.append(QueryResult(
                             skill=Skill.row_to_skill(r), score=round(score, 4),
                             retrieval_method="bm25",
@@ -69,13 +73,24 @@ class SkillRetriever:
 
             results.sort(key=lambda r: r.score, reverse=True)
 
-            if not results:
-                results = self._like_fallback(conn, query, top_k)
+            # ponytail: always supplement FTS5 with LIKE on name+description.
+            # Pure FTS5 returns body-text noise for short queries; LIKE on
+            # name+description catches exact matches FTS5's broad prefix matching
+            # can bury (e.g. "github" matching "github-workflows"). Merge and
+            # deduplicate with FTS5 results.
+            like_results = self._like_fallback(conn, query, top_k)
+            like_seen = set(r.skill.name for r in results)
+            for lr in like_results:
+                if lr.skill.name not in like_seen:
+                    like_seen.add(lr.skill.name)
+                    results.append(lr)
+
+            results.sort(key=lambda r: r.score, reverse=True)
 
             return results[:top_k]
 
     def _like_fallback(self, conn, query: str, top_k: int) -> list[QueryResult]:
-        """LIKE fallback using extracted keywords."""
+        """LIKE fallback using extracted keywords, scored competitively with FTS5."""
         words = self._extract_keywords(query)
         if words:
             patterns = ["%" + w + "%" for w in words[:3]]
@@ -91,7 +106,10 @@ class SkillRetriever:
                 "SELECT *, 0 as rank FROM skills WHERE name LIKE ? OR description LIKE ? LIMIT ?",
                 (like, like, top_k)
             ).fetchall()
-        return [QueryResult(skill=Skill.row_to_skill(r), score=0.5, retrieval_method="like")
+        # ponytail: LIKE matches on name/description are high-precision, score 0.9
+        # is just below a strong BM25 match (1.0) so they interleave with FTS5
+        # results rather than being buried.
+        return [QueryResult(skill=Skill.row_to_skill(r), score=0.9, retrieval_method="like")
                 for r in rows]
 
     def _extract_keywords(self, query: str) -> list[str]:
@@ -133,181 +151,146 @@ class SkillRetriever:
         if len(words) >= 2:
             queries.append(" ".join(safe[:3]))
         queries.append(" OR ".join(safe))
-        # Prefix match on first char of each word
-        prefix = " OR ".join(f'"{w}"*' for w in words)
-        if prefix:
-            queries.append(prefix)
+        # ponytail: try first 6 chars of long words as a broader prefix.
+        # Catches spelling variants: "postgresql" → "postgre"* matches "postgres".
+        trunc_words = [f'"{w[:6]}"*' for w in words if len(w) > 6]
+        if trunc_words:
+            queries.append(" OR ".join(trunc_words[:5]))
+        # ponytail: skip prefix match for short terms (≤2 chars) —
+        # they match too broadly in body text and drown real results.
+        long_words = [w for w in words if len(w) > 2]
+        if long_words:
+            prefix = " OR ".join(f'"{w}"*' for w in long_words[:5])
+            if prefix:
+                queries.append(prefix)
+        # Short terms get OR matching only (no prefix) — reduces noise
+        if len(words) != len(long_words):
+            short = [f'"{w}"' for w in words if len(w) <= 2]
+            if short and long_words:
+                # Mix short (exact) + long (prefix) in one OR query
+                queries.append(" OR ".join(short + [f'"{w}"*' for w in long_words[:3]]))
         return queries
 
-    # ── Embedding-based search ───────────────────────────────────────
+    # ── Fused search (BM25 + embedding RRF + graph boost + feedback) ──
 
-    def _load_embedding_model(self):
-        """Lazy-load embedding model via sentence-transformers."""
-        if self._embedding_model is not None:
-            return
-
-        try:
+    def _embedding_model(self):
+        """Lazy-load all-MiniLM-L6-v2 (sentence-transformers already installed)."""
+        if not hasattr(self, "_model"):
+            # ponytail: numpy >=2 breaks sentence-transformers model loading
+            import numpy as np
+            if np.__version__.startswith("2."):
+                self._model = None
+                return None
             from sentence_transformers import SentenceTransformer
+            self._model = SentenceTransformer("all-MiniLM-L6-v2")
+        return self._model
 
-            # Try local cache first
-            local_model_path = Path.home() / ".scm" / "models" / self._model_name.split("/")[-1]
-            model_source = (
-                str(local_model_path) if local_model_path.exists()
-                else self._model_name
-            )
-            self._embedding_model = SentenceTransformer(
-                model_source, device='cpu',
-                cache_folder=str(Path.home() / ".scm" / "models"),
-            )
-            logger.info("Loaded sentence-transformers model: %s", self._model_name)
-        except ImportError:
-            logger.info("sentence-transformers not installed, embedding disabled")
-            self._embedding_model = None
-        except Exception as e:
-            logger.warning("Embedding model load failed: %s", e)
-            self._embedding_model = None
-
-    def _encode_query(self, query: str):
-        """Encode query using loaded model. Returns normalized embedding."""
-        return self._embedding_model.encode(query, normalize_embeddings=True)
-
-    def _encode_skill_text(self, text: str):
-        """Encode skill text using loaded model."""
-        return self._embedding_model.encode(text, normalize_embeddings=True)
+    def _skill_embeddings(self):
+        """Compute + cache embeddings for all skills (name + description)."""
+        if not hasattr(self, "_embeddings"):
+            model = self._embedding_model()
+            with self._conn() as conn:
+                rows = conn.execute("SELECT name, description FROM skills").fetchall()
+            texts = [f"{r['name']}: {r['description']}" for r in rows]
+            self._emb_names = [r["name"] for r in rows]
+            # ponytail: encode all at once — ~300ms for 124 skills on all-MiniLM
+            self._embeddings = model.encode(texts, show_progress_bar=False)
+        return self._emb_names, self._embeddings
 
     def embedding_search(self, query: str, top_k: int = 20) -> list[QueryResult]:
-        """Semantic search using local embeddings. Falls back to BM25 if unavailable."""
-        query = (query or "").strip()
-        if not query:
-            return []
+        """Semantic search via all-MiniLM-L6-v2 cosine similarity."""
         try:
-            self._load_embedding_model()
-            if self._embedding_model is None:
-                logger.info("No embedding model available, falling back to BM25")
-                return self.bm25_search(query, top_k)
-            return self._embedding_search_inner(query, top_k)
-        except ImportError:
-            logger.info("Embedding dependencies not installed, falling back to BM25")
-            return self.bm25_search(query, top_k)
-        except Exception as e:
-            logger.warning(f"Embedding search error: {e}, falling back to BM25")
-            return self.bm25_search(query, top_k)
-
-    def _embedding_search_inner(self, query: str, top_k: int = 20) -> list[QueryResult]:
-        """Actual embedding search with memory-efficient loading + caching."""
-        import numpy as np
-
-        logger.debug("Encoding query...")
-        query_emb = self._encode_query(query)
-        logger.debug("Query encoded, shape=%s", query_emb.shape)
-
-        with self._conn() as conn:
-            logger.debug("Fetching skill rows...")
-            rows = conn.execute("""
-                SELECT name, description, body,
-                       SUBSTR(body, 1, 512) as body_snippet,
-                       path, category, tags, token_cost_meta, token_cost_body,
-                       use_count, success_rate, last_used, embedding
-                FROM skills
-            """).fetchall()
-            logger.debug("Fetched %d skill rows", len(rows))
-
-        results = []
-        skills_to_cache: list[tuple[str, bytes]] = []
-
-        for r in rows:
-            skill = Skill.row_to_skill(r)
-            emb_bytes = r["embedding"]
-            if emb_bytes:
-                skill_emb = np.frombuffer(emb_bytes, dtype=np.float32)
-            else:
-                text = f"{skill.name} {skill.description} {skill.body[:512]}"
-                skill_emb = self._encode_skill_text(text)
-                skills_to_cache.append((skill.name, skill_emb.tobytes()))
-
-            score = float(np.dot(query_emb, skill_emb))
-            results.append(QueryResult(
-                skill=skill, score=round(score, 4), retrieval_method="embedding"
-            ))
-
-        # Cache newly computed embeddings
-        if skills_to_cache:
-            try:
+            model = self._embedding_model()
+            if model is None:
+                # ponytail: numpy >=2 breaks st → fall back to BM25
+                return self.bm25_search(query, top_k=top_k)
+            names, embs = self._skill_embeddings()
+            q_emb = model.encode([query], show_progress_bar=False)[0]
+            scores = (embs @ q_emb) / (  # cosine = dot for unit vectors
+                (embs ** 2).sum(1) ** 0.5 * (q_emb ** 2).sum() ** 0.5 + 1e-10
+            )
+            top = scores.argsort()[-top_k:][::-1]
+            results = []
+            for i in top:
                 with self._conn() as conn:
-                    conn.executemany(
-                        "UPDATE skills SET embedding = ? WHERE name = ?",
-                        [(emb, name) for name, emb in skills_to_cache]
-                    )
-                    conn.commit()
-            except sqlite3.Error as e:
-                logger.warning(f"Failed to cache embeddings: {e}")
+                    row = conn.execute(
+                        "SELECT * FROM skills WHERE name = ?", (names[i],)
+                    ).fetchone()
+                if row:
+                    results.append(QueryResult(
+                        skill=Skill.row_to_skill(row),
+                        score=round(float(scores[i]), 4),
+                        retrieval_method="embedding",
+                    ))
+            return results
+        except Exception:
+            logger.warning("Embedding search unavailable, falling back to BM25", exc_info=True)
+            return self.bm25_search(query, top_k=top_k)
 
-        results.sort(key=lambda r: r.score, reverse=True)
-        return results[:top_k]
+    def rrf_search(self, query: str, top_k: int = 20,
+                   session_skills: Optional[list[str]] = None) -> list[QueryResult]:
+        """RRF (Reciprocal Rank Fusion) over BM25 + embedding, then graph + feedback.
 
-    # ── RRF Fusion ────────────────────────────────────────────────────
+        Uses BM25 for initial retrieval, then applies:
+        1. Knowledge graph PPR boost (if session_skills provided)
+        2. Feedback-based weight adjustment
 
-    def rrf_search(self, query: str, top_k: int = 20, k: float = 60.0) -> list[QueryResult]:
-        """Reciprocal Rank Fusion of BM25 + embedding results.
+        Args:
+            query: Task description.
+            top_k: Number of results.
+            session_skills: Skills used in current session (for graph PPR boost).
 
-        RRF scores: 1/(k + rank) per list, summed across lists.
-        k=60 recommended by SIGIR papers for robust fusion.
-        No score normalization needed — works across arbitrary scoring scales.
+        Returns:
+            Ranked list of QueryResult.
         """
-        from collections import defaultdict
-
         query = (query or "").strip()
         if not query:
             return []
 
-        bm25_results = self.bm25_search(query, top_k=top_k * 2)
-        embed_results = self.embedding_search(query, top_k=top_k * 2)
+        # ponytail: RRF over BM25 + embedding — k=60 per SIGIR recommendation
+        bm25 = self.bm25_search(query, top_k=top_k * 3)
+        embed = self.embedding_search(query, top_k=top_k * 3)
+        k = 60
+        rrf_scores: dict[str, float] = {}
+        bm25_names = {r.skill.name for r in bm25}
+        embed_names = {r.skill.name for r in embed}
 
-        rrf_scores = defaultdict(float)
-        seen = {}
+        for rank, r in enumerate(bm25):
+            rrf_scores[r.skill.name] = rrf_scores.get(r.skill.name, 0.0) + 1.0 / (k + rank + 1)
+        for rank, r in enumerate(embed):
+            rrf_scores[r.skill.name] = rrf_scores.get(r.skill.name, 0.0) + 1.0 / (k + rank + 1)
 
-        for rank, r in enumerate(bm25_results, 1):
-            rrf_scores[r.skill.name] += 1.0 / (k + rank)
-            seen[r.skill.name] = r
+        # Build merged results sorted by RRF score
+        merged_names = sorted(rrf_scores, key=lambda n: -rrf_scores[n])
+        seen = set()
+        results = []
+        for name in merged_names:
+            if name in seen:
+                continue
+            seen.add(name)
+            method = []
+            if name in bm25_names:
+                method.append("bm25")
+            if name in embed_names:
+                method.append("embed")
+            for r in bm25 + embed:
+                if r.skill.name == name:
+                    results.append(QueryResult(
+                        skill=r.skill,
+                        score=round(float(rrf_scores[name]), 4),
+                        retrieval_method="+".join(method) if method else "rrf",
+                    ))
+                    break
 
-        for rank, r in enumerate(embed_results, 1):
-            rrf_scores[r.skill.name] += 1.0 / (k + rank)
-            if r.skill.name not in seen:
-                seen[r.skill.name] = r
+        # Graph-aware boost
+        if session_skills:
+            results = self.apply_graph_boost(results, session_skills)
 
-        fused = []
-        for name, score in sorted(rrf_scores.items(), key=lambda x: -x[1]):
-            fused.append(QueryResult(
-                skill=seen[name].skill,
-                score=round(score, 4),
-                retrieval_method="rrf",
-            ))
+        # Feedback weights
+        from .feedback import FeedbackEngine
+        results = FeedbackEngine().apply_weights(results)
 
-        return fused[:top_k]
-
-    # ── Hybrid search ────────────────────────────────────────────────
-
-    def hybrid_search(self, query: str, top_k: int = 20,
-                      bm25_weight: float = 0.3, embed_weight: float = 0.7) -> list[QueryResult]:
-        """Combine BM25 + embedding search with weighted fusion."""
-        bm25_results = self.bm25_search(query, top_k=top_k * 2)
-        embed_results = self.embedding_search(query, top_k=top_k * 2)
-
-        skill_scores: dict[str, dict] = {}
-        for r in bm25_results:
-            skill_scores[r.skill.name] = {"result": r, "score_bm25": r.score, "score_embed": 0.0}
-        for r in embed_results:
-            entry = skill_scores.setdefault(r.skill.name, {"result": r, "score_bm25": 0.0, "score_embed": 0.0})
-            entry["score_embed"] = r.score
-
-        fused = []
-        for name, data in skill_scores.items():
-            hybrid = data["score_bm25"] * bm25_weight + data["score_embed"] * embed_weight
-            fused.append(QueryResult(
-                skill=data["result"].skill, score=round(hybrid, 4), retrieval_method="hybrid",
-            ))
-        fused.sort(key=lambda r: r.score, reverse=True)
-        return fused[:top_k]
+        return results[:top_k]
 
     # ── Session-aware boost ──────────────────────────────────────────
 

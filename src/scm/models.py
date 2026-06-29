@@ -24,7 +24,6 @@ class Skill:
     last_used: Optional[str] = None
     use_count: int = 0
     success_rate: float = 0.0
-    embedding: Optional[list[float]] = None
 
     @property
     def metadata_str(self) -> str:
@@ -33,7 +32,7 @@ class Skill:
         return f"{self.name}: {self.description}{tags_str}"
 
     def to_dict(self) -> dict:
-        return {k: v for k, v in asdict(self).items() if k != "embedding"}
+        return asdict(self)
 
     @classmethod
     def row_to_skill(cls, row) -> "Skill":
@@ -142,7 +141,7 @@ class QueryResult:
     """Result of a skill query."""
     skill: Skill
     score: float
-    retrieval_method: str  # "embedding", "bm25", "hybrid", "reranked"
+    retrieval_method: str  # "bm25", "rrf", "bm25+session", "bm25+graph"
 
 
 @dataclass

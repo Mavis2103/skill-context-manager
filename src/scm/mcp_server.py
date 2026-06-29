@@ -23,18 +23,17 @@ import sqlite3
 import sys
 import time
 from functools import wraps
-from pathlib import Path
 from typing import Optional
 
 # Local imports
 from scm.models import FeedbackRecord
 from scm.indexer import SkillIndexer
 from scm.retriever import SkillRetriever
-from scm.reranker import SkillReranker
 from scm.session import SessionTracker
 from scm.optimizer import SkillOptimizer
 from scm.feedback import FeedbackEngine
 from scm.tracker import UsageTracker
+from scm.security import validate_skill_dir
 
 
 # ── Safe call decorator ───────────────────────────────────────────
@@ -68,48 +67,39 @@ def create_mcp_server() -> "FastMCP":  # noqa: F821 — lazy import inside fn bo
     def skill_query(
         query: str,
         top_k: int = 5,
-        method: str = "hybrid",
+        method: str = "rrf",
         session_id: str = "",
-        use_reranker: bool = True,
     ) -> dict:
         """Find the most relevant skills for a task.
 
         Args:
             query: Task description (e.g. "deploy app to kubernetes")
             top_k: Number of results (default: 5)
-            method: Search method — "bm25", "embedding", "hybrid", or "rrf" (default)
+            method: Search method — "bm25", "rrf" (default), or "rrf+graph"
             session_id: Optional session ID for session-aware boosting
-            use_reranker: Whether to use cross-encoder reranking (default: true)
         """
         retriever = SkillRetriever()
-        reranker = SkillReranker()
 
         start = time.time()
 
         # Stage 1: Retrieve
         if method == "bm25":
             results = retriever.bm25_search(query, top_k=top_k * 4)
-        elif method == "embedding":
-            results = retriever.embedding_search(query, top_k=top_k * 4)
-        elif method == "rrf":
-            results = retriever.rrf_search(query, top_k=top_k * 4)
         else:
-            results = retriever.hybrid_search(query, top_k=top_k * 4)
+            results = retriever.rrf_search(query, top_k=top_k * 4)
 
         # Session boost
         if session_id:
             tracker = SessionTracker()
             recent = tracker.get_recent_skills(session_id)
             if recent:
+                # Apply session + graph boost
                 results = retriever.apply_session_boost(results, recent, boost=0.5)
+                results = retriever.apply_graph_boost(results, recent)
 
         # Feedback weights
         feedback = FeedbackEngine()
         results = feedback.apply_weights(results)
-
-        # Stage 2: Rerank
-        if use_reranker and len(results) > 1:
-            results = reranker.rerank(query, results, top_k=top_k)
 
         elapsed_ms = (time.time() - start) * 1000
 
@@ -146,22 +136,24 @@ def create_mcp_server() -> "FastMCP":  # noqa: F821 — lazy import inside fn bo
 
     @mcp.tool()
     @safe_call
-    def skill_index(directory: str, recursive: bool = True) -> dict:
+    def skill_index(directory: str, recursive: bool = True, dedup: bool = True) -> dict:
         """Index skills from a directory into the search database.
 
         Args:
             directory: Path to skills directory (e.g. "/home/user/.hermes/skills/")
             recursive: Scan subdirectories recursively (default: true)
+            dedup: Run dedup after indexing to merge fuzzy duplicates (default: true)
         """
-        dir_path = Path(directory).expanduser().resolve()
-        if not dir_path.exists():
-            return {"error": f"Directory not found: {directory}"}
+        try:
+            dir_path = validate_skill_dir(directory)
+        except ValueError as e:
+            return {"error": str(e)}
 
         indexer = SkillIndexer()
         count = indexer.index_directory(dir_path, recursive=recursive)
         stats = indexer.stats()
 
-        return {
+        result = {
             "indexed": count,
             "directory": str(dir_path),
             "total_skills": stats["total_skills"],
@@ -169,6 +161,25 @@ def create_mcp_server() -> "FastMCP":  # noqa: F821 — lazy import inside fn bo
             "total_tokens_body": stats["total_tokens_body"],
             "categories": list(stats.get("categories", {}).keys()) if stats.get("categories") else [],
         }
+
+        if dedup:
+            dedup_result = indexer.dedup_skills()
+            if dedup_result["total_removed"] > 0:
+                result["dedup_removed"] = dedup_result["total_removed"]
+
+        return result
+
+    @mcp.tool()
+    @safe_call
+    def skill_dedup() -> dict:
+        """Run dedup on all indexed skills. Merges fuzzy duplicates
+        (same content, different names) via MinHash+Jaro-Winkler.
+
+        Runs automatically in skill_index; call this after manual
+        skill file edits or multi-directory indexing.
+        """
+        indexer = SkillIndexer()
+        return indexer.dedup_skills()
 
     @mcp.tool()
     @safe_call
@@ -262,7 +273,7 @@ def create_mcp_server() -> "FastMCP":  # noqa: F821 — lazy import inside fn bo
         # Find related skills for current query
         if query:
             retriever = SkillRetriever()
-            results = retriever.hybrid_search(query, top_k=3)
+            results = retriever.rrf_search(query, top_k=3)
             context["related_skills"] = [
                 {"name": r.skill.name, "description": r.skill.description}
                 for r in results
@@ -298,9 +309,10 @@ def create_mcp_server() -> "FastMCP":  # noqa: F821 — lazy import inside fn bo
             directory: Path to skills directory
             dry_run: Preview changes without applying (default: true)
         """
-        dir_path = Path(directory).expanduser().resolve()
-        if not dir_path.exists():
-            return {"error": f"Directory not found: {directory}"}
+        try:
+            dir_path = validate_skill_dir(directory)
+        except ValueError as e:
+            return {"error": str(e)}
 
         optimizer = SkillOptimizer()
         results = optimizer.optimize_directory(dir_path, dry_run=dry_run)
@@ -363,37 +375,30 @@ def create_mcp_server() -> "FastMCP":  # noqa: F821 — lazy import inside fn bo
         max_results: int = 10,
         method: str = "rrf",
         session_id: str = "",
-        use_reranker: bool = True,
     ) -> dict:
-        """Find relevant skills with adaptive result count and cluster diversity.
+        """Find relevant skills with adaptive result count and category diversity.
 
         Unlike skill_query (fixed top-k), this automatically determines the
         optimal number of results using the elbow method and groups them
-        by topic cluster for diverse coverage.
+        by category for diverse coverage.
 
         Args:
             query: Task description (e.g. "deploy app to kubernetes")
             max_results: Maximum results to return (default: 10)
-            method: Search method — "bm25", "embedding", "hybrid", or "rrf"
+            method: Search method — "bm25", "rrf" (default), or "rrf+graph"
             session_id: Optional session ID for session-aware boosting
-            use_reranker: Whether to use cross-encoder reranking (default: true)
         """
-        from .adaptive import adaptive_query, SkillClusterer
+        from .adaptive import adaptive_query, diverse_filter
 
         retriever = SkillRetriever()
-        reranker = SkillReranker()
 
         start = time.time()
 
         # Stage 1: Retrieve candidates
-        if method == "rrf":
-            results = retriever.rrf_search(query, top_k=max_results * 4)
-        elif method == "bm25":
+        if method == "bm25":
             results = retriever.bm25_search(query, top_k=max_results * 4)
-        elif method == "embedding":
-            results = retriever.embedding_search(query, top_k=max_results * 4)
         else:
-            results = retriever.hybrid_search(query, top_k=max_results * 4)
+            results = retriever.rrf_search(query, top_k=max_results * 4)
 
         # Session boost
         if session_id:
@@ -407,10 +412,6 @@ def create_mcp_server() -> "FastMCP":  # noqa: F821 — lazy import inside fn bo
         from .feedback import FeedbackEngine
         feedback = FeedbackEngine()
         results = feedback.apply_weights(results)
-
-        # Rerank
-        if use_reranker and len(results) > 1:
-            results = reranker.rerank(query, results, top_k=max_results * 2)
 
         # Stage 2: Adaptive selection via elbow
         adaptive_out = adaptive_query(
@@ -429,31 +430,11 @@ def create_mcp_server() -> "FastMCP":  # noqa: F821 — lazy import inside fn bo
                 "clusters": [],
             }
 
-        # Stage 3: Cluster diversity
-        clusterer = SkillClusterer(db_path=retriever.db_path)
-        clusterer.load_embeddings()
-        diverse = clusterer.filter_to_diverse(
+        # Stage 3: Category diversity
+        diverse = diverse_filter(
             adaptive_out["results"],
             top_k=len(adaptive_out["results"]),
         )
-
-        # Build cluster overview
-        labels = clusterer.cluster_all()
-        seen_clusters: dict[int, set[str]] = {}
-        for r in diverse:
-            cid = labels.get(r.skill.name, -1)
-            if cid not in seen_clusters:
-                seen_clusters[cid] = set()
-            seen_clusters[cid].add(r.skill.name)
-
-        cluster_overview = []
-        for cid, members in seen_clusters.items():
-            info = clusterer.get_cluster_info(cid, list(members))
-            cluster_overview.append({
-                "cluster_id": info["cluster_id"],
-                "size": info["size"],
-                "topic": info["representative"],
-            })
 
         elapsed_ms = (time.time() - start) * 1000
 
@@ -465,7 +446,6 @@ def create_mcp_server() -> "FastMCP":  # noqa: F821 — lazy import inside fn bo
             "elbow_found": adaptive_out["elbow_found"],
             "score_range": adaptive_out["score_range"],
             "message": adaptive_out["message"],
-            "clusters": cluster_overview,
             "results": [
                 {
                     "name": r.skill.name,
@@ -476,7 +456,6 @@ def create_mcp_server() -> "FastMCP":  # noqa: F821 — lazy import inside fn bo
                     "tags": r.skill.tags,
                     "token_cost_metadata": r.skill.token_cost_metadata,
                     "token_cost_body": r.skill.token_cost_body,
-                    "cluster_label": labels.get(r.skill.name, -1),
                 }
                 for r in diverse
             ],
@@ -494,6 +473,32 @@ def create_mcp_server() -> "FastMCP":  # noqa: F821 — lazy import inside fn bo
         """
         tracker = UsageTracker()
         return tracker.get_insights(days=days)
+
+    # ── Layer 8: Network ──────────────────────────────────────────
+
+    @mcp.tool()
+    @safe_call
+    def skill_neighbors(name: str, edge_types: str = "") -> dict:
+        """Get related skills via graph proximity.
+
+        Args:
+            name: Skill name
+            edge_types: Optional comma-separated filter (e.g. "co_occur,text_overlap")
+        """
+        from .graph import SkillGraph
+        graph = SkillGraph()
+        graph.build_from_db()
+        type_filter = set(filter(None, edge_types.split(","))) if edge_types else None
+        neighbors = graph.get_neighbors(name, edge_types=type_filter)
+        stats = graph.get_stats()
+        return {
+            "name": name,
+            "neighbors": [
+                {"name": n, "weight": round(w, 4), "type": t}
+                for n, w, t in neighbors[:20]
+            ],
+            "graph_stats": stats,
+        }
 
     # ── Prompts ────────────────────────────────────────────────────
 
