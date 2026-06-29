@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-06-29 — Graceful Embedding Fallback
+
+### Fixed
+- **`_embedding_model()` crashes with `ModuleNotFoundError`** when `sentence_transformers` is not installed — now catches `ImportError` and returns `None`, enabling graceful BM25 fallback. (v0.8.0 removed optional `[light]`/`[full]` extras but the retriever didn't handle the missing dependency gracefully.)
+- **Noisy fallback log** — `exc_info=True` dumped full traceback to CLI output even though the fallback worked correctly. Changed from `logger.warning(..., exc_info=True)` to `logger.info(...)`.
+
+### Changed
+- Version bumped to **0.8.1**.
+
 ## [0.8.0] - 2026-06-29 — Entity Dedup + Path Security + MinHash RRF
 
 ### Added
@@ -338,6 +347,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ||| Version | Date       | Type   | Highlights |
 |||---------|-----------|--------|------------|
+|||| 0.8.1   | 2026-06-29 | Patch  | Graceful embedding fallback when sentence_transformers not installed |
 |||| 0.8.0   | 2026-06-29 | Minor  | Entity dedup, path security, MinHash RRF, graph edges, deleted dead code |
 |||| 0.7.2   | 2026-06-22 | Patch  | Lint cleanup, README docs fix, ARCHITECTURE.md sync |
 ||| 0.7.1   | 2026-06-19 | Patch  | Remove broken ONNX int8 code path |
@@ -353,7 +363,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ||| 0.2.1   | 2026-06-18 | Patch  | 16 bug fixes, 24 regression tests |
 ||| 0.2.0   | 2026-06-18 | Minor  | Initial public release, MCP server |
 
-[Unreleased]: https://github.com/Mavis2103/skill-context-manager/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/Mavis2103/skill-context-manager/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/Mavis2103/skill-context-manager/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Mavis2103/skill-context-manager/compare/v0.7.2...v0.8.0
 [0.7.2]: https://github.com/Mavis2103/skill-context-manager/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/Mavis2103/skill-context-manager/compare/v0.7.0...v0.7.1
