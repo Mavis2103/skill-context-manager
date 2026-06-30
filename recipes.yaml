@@ -1,0 +1,37 @@
+# ponytail: zero-retrieval skill bundles for common agent tasks
+# Add recipes as you discover repeatable skill combinations.
+# Only reference skills that exist in the indexed DB.
+recipes:
+  fine-tune-llm:
+    description: "Fine-tune a language model"
+    must:
+      - llm-finetune
+      - unsloth-colab-finetune
+    should:
+      - evaluating-llms-harness
+      - weights-and-biases
+      - onnx-export
+  code-review:
+    description: "Review and improve code quality"
+    must:
+      - code-review-workflow
+    should:
+      - tdd
+      - simplify-code
+      - codebase-inspection
+  full-stack-deploy:
+    description: "Full-stack app with database and monitoring"
+    must:
+      - container-networking
+      - cron-monitoring
+    should:
+      - supabase
+      - supabase-postgres-best-practices
+  frontend-workflow:
+    description: "UI development and design"
+    must:
+      - ui-ux-pro-max
+      - frontend-design
+    should:
+      - vercel-react-best-practices
+      - ckm:design

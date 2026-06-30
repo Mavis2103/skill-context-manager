@@ -20,9 +20,11 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import os
 import sys
 import time
 from functools import wraps
+from pathlib import Path
 from typing import Optional
 
 # Local imports
@@ -60,6 +62,10 @@ def create_mcp_server() -> "FastMCP":  # noqa: F821 — lazy import inside fn bo
 
     mcp = FastMCP("scm-mcp")
 
+    # ponytail: preload embedding model in background (cold start ~11s)
+    import threading
+    threading.Thread(target=SkillRetriever().warmup, daemon=True).start()
+
     # ── Layer 1: Skill Query ───────────────────────────────────────
 
     @mcp.tool()
@@ -67,6 +73,8 @@ def create_mcp_server() -> "FastMCP":  # noqa: F821 — lazy import inside fn bo
     def skill_query(
         query: str,
         top_k: int = 5,
+        threshold: float = 0.0,
+        budget_tokens: int = 0,
         method: str = "rrf",
         session_id: str = "",
     ) -> dict:
@@ -75,9 +83,15 @@ def create_mcp_server() -> "FastMCP":  # noqa: F821 — lazy import inside fn bo
         Args:
             query: Task description (e.g. "deploy app to kubernetes")
             top_k: Number of results (default: 5)
+            threshold: Score filter — only return skills above this (default: 0.0 = off)
+            budget_tokens: Load full bodies up to this budget (>0 = budget mode)
             method: Search method — "bm25", "rrf" (default), or "rrf+graph"
             session_id: Optional session ID for session-aware boosting
         """
+        # ponytail: auto-session if none provided
+        if not session_id:
+            session_id = os.environ.get("SCM_SESSION_ID", "auto-{}".format(os.getpid()))
+
         retriever = SkillRetriever()
 
         start = time.time()
@@ -88,6 +102,20 @@ def create_mcp_server() -> "FastMCP":  # noqa: F821 — lazy import inside fn bo
         else:
             results = retriever.rrf_search(query, top_k=top_k * 4)
 
+        # Budget mode: load full bodies up to token budget
+        if budget_tokens > 0:
+            loaded = retriever.load_budgeted(
+                query, budget_tokens=budget_tokens,
+                threshold=threshold, method=method,
+            )
+            return {
+                "query": query,
+                "mode": "budgeted",
+                "budget_tokens": budget_tokens,
+                "total_tokens_loaded": sum(s["tokens"] for s in loaded),
+                "skills": loaded,
+            }
+
         # Session boost
         if session_id:
             tracker = SessionTracker()
@@ -97,9 +125,14 @@ def create_mcp_server() -> "FastMCP":  # noqa: F821 — lazy import inside fn bo
                 results = retriever.apply_session_boost(results, recent, boost=0.5)
                 results = retriever.apply_graph_boost(results, recent)
 
-        # Feedback weights
-        feedback = FeedbackEngine()
-        results = feedback.apply_weights(results)
+        # Feedback weights — ponytail: disabled (3 records, statistically
+        # meaningless). Re-enable when feedback_count > 50.
+        # from .feedback import FeedbackEngine
+        # results = FeedbackEngine().apply_weights(results)
+
+        # Threshold filter
+        if threshold > 0:
+            results = [r for r in results if r.score >= threshold]
 
         elapsed_ms = (time.time() - start) * 1000
 
@@ -408,10 +441,10 @@ def create_mcp_server() -> "FastMCP":  # noqa: F821 — lazy import inside fn bo
             if recent:
                 results = retriever.apply_session_boost(results, recent, boost=0.5)
 
-        # Feedback weights
-        from .feedback import FeedbackEngine
-        feedback = FeedbackEngine()
-        results = feedback.apply_weights(results)
+        # Feedback weights — ponytail: disabled (see skill_query).
+        # from .feedback import FeedbackEngine
+        # feedback = FeedbackEngine()
+        # results = feedback.apply_weights(results)
 
         # Stage 2: Adaptive selection via elbow
         adaptive_out = adaptive_query(
@@ -499,6 +532,73 @@ def create_mcp_server() -> "FastMCP":  # noqa: F821 — lazy import inside fn bo
             ],
             "graph_stats": stats,
         }
+
+    # ── Layer 9: Recipes ──────────────────────────────────────────
+
+    @mcp.tool()
+    @safe_call
+    def skill_recipe(name: str, include_should: bool = True) -> dict:
+        """Load a pre-defined skill recipe (zero-retrieval skill bundles)."""
+        import yaml
+        recipe_file = Path(__file__).parent.parent / "recipes.yaml"
+        if not recipe_file.exists():
+            return {"error": f"No recipes.yaml found at {recipe_file}"}
+        with open(recipe_file) as f:
+            recipes = yaml.safe_load(f)
+        recipe = (recipes or {}).get("recipes", {}).get(name)
+        if not recipe:
+            return {"error": f"Recipe '{name}' not found. Available: {list((recipes or {}).get('recipes', {}).keys())}"}
+
+        skill_names: list[str] = list(recipe.get("must", []))
+        if include_should:
+            skill_names.extend(recipe.get("should", []))
+        if not skill_names:
+            return {"error": "Recipe has no skills defined"}
+
+        retriever = SkillRetriever()
+        with retriever._conn() as conn:
+            skills = []
+            for sn in skill_names:
+                row = conn.execute(
+                    "SELECT name, description, category, tags, body, token_cost_body FROM skills WHERE name = ?",
+                    (sn,)
+                ).fetchone()
+                if row:
+                    skills.append({
+                        "name": row["name"], "description": row["description"],
+                        "category": row["category"], "tags": row["tags"],
+                        "body": row["body"], "tokens": row["token_cost_body"],
+                    })
+        return {
+            "name": name,
+            "description": recipe.get("description", ""),
+            "skills": skills,
+            "total_tokens": sum(s["tokens"] for s in skills),
+            "include_should": include_should,
+        }
+
+    @mcp.tool()
+    @safe_call
+    def skill_recipe_save(name: str, must: list[str] = None,
+                           should: list[str] = None,
+                           description: str = "") -> dict:
+        """Save or update a skill recipe (persisted to recipes.yaml)."""
+        import yaml
+        recipe_file = Path(__file__).parent.parent / "recipes.yaml"
+        recipes: dict = {}
+        if recipe_file.exists():
+            with open(recipe_file) as f:
+                recipes = yaml.safe_load(f) or {}
+        if "recipes" not in recipes:
+            recipes["recipes"] = {}
+        recipes["recipes"][name] = {
+            "description": description,
+            "must": must or [],
+            "should": should or [],
+        }
+        with open(recipe_file, "w") as f:
+            yaml.dump(recipes, f, default_flow_style=False)
+        return {"saved": True, "name": name, "must": len(must or []), "should": len(should or [])}
 
     # ── Prompts ────────────────────────────────────────────────────
 

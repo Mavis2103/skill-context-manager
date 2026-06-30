@@ -58,6 +58,10 @@ Examples:
                          help="Output format (default: text)")
     p_query.add_argument("--session", type=str, default="",
                          help="Session ID for session-aware boosting")
+    p_query.add_argument("--threshold", type=float, default=0.0,
+                         help="Score threshold filter (default: 0.0 = off)")
+    p_query.add_argument("--budget", type=int, default=0,
+                         help="Token budget for full-body loading (default: 0 = off)")
 
     # ── session ──
     p_session = sub.add_parser("session", help="Manage skill usage sessions")
@@ -110,7 +114,7 @@ Examples:
     sub.add_parser("stats", help="Show indexing statistics")
 
     # ── clean-models ──
-    p_clean = sub.add_parser("clean-models", help="Remove local model caches (no longer needed)")
+    sub.add_parser("clean-models", help="Remove local model caches (no longer needed)")
 
     # ── insights ──
     p_ins = sub.add_parser("insights", help="Show usage insights")
@@ -221,6 +225,21 @@ def cmd_query(args):
     else:
         results = retriever.rrf_search(query, top_k=args.top * 4)
 
+    # Budget mode: load full bodies
+    if args.budget > 0:
+        loaded = retriever.load_budgeted(
+            query, budget_tokens=args.budget,
+            threshold=args.threshold,
+            method=args.method,
+        )
+        total_tokens = sum(s["tokens"] for s in loaded)
+        print(f"\n📦 Loaded {len(loaded)} skills (budget: {args.budget}t, used: {total_tokens}t)\n")
+        for s in loaded:
+            print(f"  📄 {s['name']} ({s['tokens']}t)")
+            print(f"     {s['description']}")
+            print(f"     Body: {s['body'][:200]}...\n" if len(s['body']) > 200 else f"     Body: {s['body']}\n")
+        return
+
     if args.session:
         session_tracker = SessionTracker()
         recent = session_tracker.get_recent_skills(args.session)
@@ -229,6 +248,10 @@ def cmd_query(args):
 
     feedback = FeedbackEngine()
     results = feedback.apply_weights(results)
+
+    # Threshold filter
+    if args.threshold > 0:
+        results = [r for r in results if r.score >= args.threshold]
 
     elapsed = (time.time() - start) * 1000
 
@@ -319,7 +342,7 @@ def cmd_session(args):
         context = tracker.optimize_skill_context(sid, args.query)
         if args.query:
             retriever = SkillRetriever()
-            results = retriever.hybrid_search(args.query, top_k=3)
+            results = retriever.rrf_search(args.query, top_k=3)
             context["matching_skills"] = [
                 {"name": r.skill.name, "description": r.skill.description}
                 for r in results
@@ -432,7 +455,6 @@ def cmd_clean_models(args=None):
         print(f"✓ No model cache at {models_dir}")
 
     # Also clean any onnx model files in db dir
-    import glob
     onnx_files = list(Path.home().glob(".scm/db/*.onnx"))
     for f in onnx_files:
         f.unlink()

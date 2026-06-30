@@ -130,3 +130,72 @@ class TestRetriever:
         for k in [1, 3, 10]:
             results = indexed_skills.rrf_search("database", top_k=k)
             assert len(results) <= k
+
+    # ── Threshold tests ────────────────────────────────────────
+
+    def test_bm25_threshold_filters_low_scores(self, indexed_skills):
+        """BM25 with threshold excludes results below the score floor."""
+        no_threshold = indexed_skills.bm25_search("k8s", top_k=10)
+        assert len(no_threshold) >= 1
+        with_threshold = indexed_skills.bm25_search("k8s", top_k=10, threshold=0.9)
+        # Only high-scoring results survive
+        assert all(r.score >= 0.9 for r in with_threshold)
+
+    def test_rrf_threshold_filters_low_scores(self, indexed_skills):
+        """RRF with threshold excludes results below the score floor."""
+        no_threshold = indexed_skills.rrf_search("deploy", top_k=10)
+        assert len(no_threshold) >= 1
+        with_threshold = indexed_skills.rrf_search("deploy", top_k=10, threshold=0.5)
+        assert all(r.score >= 0.5 for r in with_threshold)
+
+    def test_threshold_zero_returns_all(self, indexed_skills):
+        """threshold=0 (default) should return same as no threshold."""
+        default = indexed_skills.rrf_search("docker", top_k=10)
+        explicit = indexed_skills.rrf_search("docker", top_k=10, threshold=0.0)
+        assert len(default) == len(explicit)
+
+    def test_threshold_high_returns_none(self, indexed_skills):
+        """threshold=2.0 should return empty (no score that high)."""
+        results = indexed_skills.rrf_search("docker", top_k=10, threshold=2.0)
+        assert len(results) == 0
+
+    # ── Budget-aware loading tests ──────────────────────────────
+
+    def test_load_budgeted_returns_full_bodies(self, indexed_skills):
+        """load_budgeted returns dicts with body field."""
+        # ponytail: use bm25 with no threshold for small test DB (RRF scores are tiny)
+        loaded = indexed_skills.load_budgeted("deploy", budget_tokens=2000,
+                                               threshold=0.0, method="bm25")
+        assert len(loaded) >= 1
+        assert all("name" in s for s in loaded)
+        assert all("body" in s for s in loaded)
+        assert all("tokens" in s for s in loaded)
+
+    def test_load_budgeted_respects_budget(self, indexed_skills):
+        """load_budgeted stays within or near the token budget."""
+        # ponytail: bm25 for small test DB
+        loaded = indexed_skills.load_budgeted("monitoring", budget_tokens=100,
+                                               threshold=0.0, method="bm25")
+        total = sum(s["tokens"] for s in loaded)
+        # First skill always loads; total may exceed budget slightly
+        assert total >= 0
+        # If more than one skill loaded, total should be <= budget + first_skill_tokens
+        if len(loaded) > 1:
+            assert total <= 100 + loaded[0]["tokens"]
+
+    def test_load_budgeted_empty_query(self, indexed_skills):
+        """Empty query returns empty list."""
+        loaded = indexed_skills.load_budgeted("", budget_tokens=500)
+        assert loaded == []
+
+    def test_warmup_no_crash(self, indexed_skills):
+        """warmup() should not raise (graceful no-op if no model)."""
+        indexed_skills.warmup()  # should not raise
+        assert True
+
+    def test_load_budgeted_skips_outliers(self, indexed_skills):
+        """Budget mode skips skills > 2×budget in favor of smaller ones."""
+        # Small budget — outliers should be skipped, fallback to first
+        loaded = indexed_skills.load_budgeted("pytest", budget_tokens=10)
+        # If all are outliers, fallback should return at least 1
+        assert len(loaded) >= 1

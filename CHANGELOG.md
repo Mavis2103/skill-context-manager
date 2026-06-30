@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-06-30 — Weighted BM25, Generic-Term Guard, Category Expansion
+
+### Added
+- **Weighted BM25 column weights** (`retriever.py`) — FTS5 `bm25(name×5, desc×3, body×1, tags×1)` makes name/description matches significantly more valuable than body-text noise, reducing false positives from large skills that mention a topic in passing.
+- **`GENERIC_TERMS`** (`retriever.py`) — `{"pipeline", "dashboard"}` excluded from name-boost hint check. Skills whose only name match is a generic term no longer dominate multi-word queries.
+- **`_EXPANSIONS`** (`retriever.py`) — synonym expansion: `"pipeline"` → `ci/cd/build/release/deploy` so pipeline queries also match CI/CD skills.
+- **Category directory fallback** (`models.py`) — skills under `~/.hermes/skills/<category>/` automatically get that category when frontmatter lacks `category:`. `diverse_filter` now spans 25 categories (was 6).
+
+### Fixed
+- **RRF body-noise bypass** — BM25's `_has_hint` score cap (≤0.85) only affected BM25 scores; RRF merged rank positions, not scores, bypassing the cap. Added matching name+description penalty (`×0.7`) at RRF level.
+- **Feedback weight domination** — `apply_weights` blended RRF scores (0.01-0.03) with base_weights (0.3-1.0), letting 3 feedback records dominate ALL queries. Removed from `rrf_search` and commented out in MCP tools. Re-enable when feedback_count > 50.
+- **Double weight application** — `FeedbackEngine().apply_weights()` called inside `rrf_search()` AND by every caller. Removed from `rrf_search`.
+- **Elbow false positive on compressed scores** — `detect_elbow` now requires `max_gap >= max(scores) × 0.05`, preventing false cuts on noise-level score gaps in RRF (0.01-0.03 scale).
+- **70+ skills uncategorized** — directory fallback reduced uncategorized from 117 to 22 (the rest live under `~/.agents/skills/` with no parent directory).
+
+### Changed
+- Version bumped to **0.8.2**.
+
 ## [0.8.1] - 2026-06-29 — Graceful Embedding Fallback
 
 ### Fixed

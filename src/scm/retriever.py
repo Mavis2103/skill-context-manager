@@ -17,6 +17,24 @@ logger = logging.getLogger("scm.retriever")
 class SkillRetriever:
     """Retrieve relevant skills using FTS5 BM25, with session + graph boosting."""
 
+    # ponytail: shared model/embeddings across ALL instances (class-level cache)
+    _shared_model = None
+    _shared_embeddings = None
+    _shared_emb_names = None
+
+    # ponytail: terms too generic for name-boost.
+    # Skills whose ONLY name match is a generic term (e.g. "pipeline") should
+    # not get ×5 BM25 boost — the term carries no domain specificity.
+    GENERIC_TERMS = frozenset({"pipeline", "dashboard"})
+
+    # ponytail: synonym expansion for generic technical terms.
+    # Expands a broad/generic query term into specific sub-terms so BM25
+    # matches more relevant skills. One direction mapping is sufficient
+    # (synonyms are added as extra search terms, never removed).
+    _EXPANSIONS = {
+        "pipeline": ["ci", "cd", "build", "release", "deploy"],
+    }
+
     def __init__(self, db_path: Optional[Path] = None):
         self.db_path = db_path
         init_schema(db_path)
@@ -24,9 +42,19 @@ class SkillRetriever:
     def _conn(self):
         return connect(self.db_path)
 
+    def warmup(self):
+        """Preload embedding model (cold start ~11s). No-op if loaded or unavailable."""
+        try:
+            model = self._embedding_model()
+            if model is not None:
+                self._skill_embeddings()
+        except Exception:
+            pass
+
     # ── BM25 via SQLite FTS5 ──────────────────────────────────────────
 
-    def bm25_search(self, query: str, top_k: int = 20) -> list[QueryResult]:
+    def bm25_search(self, query: str, top_k: int = 20,
+                    threshold: float = 0.0) -> list[QueryResult]:
         """BM25 search using SQLite FTS5 with LIKE fallback."""
         query = (query or "").strip()
         if not query:
@@ -39,8 +67,8 @@ class SkillRetriever:
 
             for fts_query in fts_queries:
                 try:
-                    rows = conn.execute("""
-                        SELECT s.*, rank
+                    rows = conn.execute("""\
+                        SELECT s.*, bm25(skills_fts, 5.0, 3.0, 1.0, 1.0) as rank
                         FROM skills_fts f
                         JOIN skills s ON s.rowid = f.rowid
                         WHERE skills_fts MATCH ?
@@ -61,6 +89,7 @@ class SkillRetriever:
                         _has_hint = any(
                             term in name_lower or term[:6] in name_lower
                             for term in q_lower.split()
+                            if term not in self.GENERIC_TERMS
                         )
                         if not _has_hint:
                             score = min(score, 0.85)
@@ -87,6 +116,9 @@ class SkillRetriever:
 
             results.sort(key=lambda r: r.score, reverse=True)
 
+            # ponytail: threshold filter at end of BM25
+            if threshold > 0:
+                results = [r for r in results if r.score >= threshold]
             return results[:top_k]
 
     def _like_fallback(self, conn, query: str, top_k: int) -> list[QueryResult]:
@@ -136,13 +168,24 @@ class SkillRetriever:
         return [w for w in re.sub(r'[^\w\s-]', ' ', query).lower().split()
                 if w not in stopwords and len(w) > 2]
 
+    def _expand_keywords(self, words: list[str]) -> list[str]:
+        """Expand keywords with synonym terms for broader recall."""
+        expanded = list(words)
+        for w in words:
+            ex = self._EXPANSIONS.get(w)
+            if ex:
+                for e in ex:
+                    if e not in expanded:
+                        expanded.append(e)
+        return expanded
+
     def _build_fts_queries(self, query: str) -> list[str]:
         """Build multiple FTS5 query strategies.
 
         Sanitizes user input to prevent FTS5 syntax injection (quotes, parens,
         operators like NEAR/AND/OR/NOT) and to handle Unicode/special chars safely.
         """
-        words = self._extract_keywords(query)
+        words = self._expand_keywords(self._extract_keywords(query))
         if not words:
             return []
         # Quote each term — FTS5 treats "word" as literal substring
@@ -175,31 +218,31 @@ class SkillRetriever:
 
     def _embedding_model(self):
         """Lazy-load all-MiniLM-L6-v2 (sentence-transformers already installed)."""
-        if not hasattr(self, "_model"):
-            # ponytail: numpy >=2 breaks sentence-transformers model loading
-            import numpy as np
-            if np.__version__.startswith("2."):
-                self._model = None
-                return None
-            try:
-                from sentence_transformers import SentenceTransformer
-            except ImportError:
-                self._model = None
-                return None
-            self._model = SentenceTransformer("all-MiniLM-L6-v2")
-        return self._model
+        if SkillRetriever._shared_model is not None:
+            return SkillRetriever._shared_model
+        # ponytail: numpy >=2 breaks sentence-transformers model loading
+        import numpy as np
+        if np.__version__.startswith("2."):
+            return None
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError:
+            return None
+        SkillRetriever._shared_model = SentenceTransformer("all-MiniLM-L6-v2")
+        return SkillRetriever._shared_model
 
     def _skill_embeddings(self):
         """Compute + cache embeddings for all skills (name + description)."""
-        if not hasattr(self, "_embeddings"):
-            model = self._embedding_model()
-            with self._conn() as conn:
-                rows = conn.execute("SELECT name, description FROM skills").fetchall()
-            texts = [f"{r['name']}: {r['description']}" for r in rows]
-            self._emb_names = [r["name"] for r in rows]
-            # ponytail: encode all at once — ~300ms for 124 skills on all-MiniLM
-            self._embeddings = model.encode(texts, show_progress_bar=False)
-        return self._emb_names, self._embeddings
+        if SkillRetriever._shared_embeddings is not None:
+            return SkillRetriever._shared_emb_names, SkillRetriever._shared_embeddings
+        model = self._embedding_model()
+        with self._conn() as conn:
+            rows = conn.execute("SELECT name, description FROM skills").fetchall()
+        texts = [f"{r['name']}: {r['description']}" for r in rows]
+        SkillRetriever._shared_emb_names = [r["name"] for r in rows]
+        # ponytail: encode all at once — ~300ms for 124 skills on all-MiniLM
+        SkillRetriever._shared_embeddings = model.encode(texts, show_progress_bar=False)
+        return SkillRetriever._shared_emb_names, SkillRetriever._shared_embeddings
 
     def embedding_search(self, query: str, top_k: int = 20) -> list[QueryResult]:
         """Semantic search via all-MiniLM-L6-v2 cosine similarity."""
@@ -232,7 +275,8 @@ class SkillRetriever:
             return self.bm25_search(query, top_k=top_k)
 
     def rrf_search(self, query: str, top_k: int = 20,
-                   session_skills: Optional[list[str]] = None) -> list[QueryResult]:
+                   session_skills: Optional[list[str]] = None,
+                   threshold: float = 0.0) -> list[QueryResult]:
         """RRF (Reciprocal Rank Fusion) over BM25 + embedding, then graph + feedback.
 
         Uses BM25 for initial retrieval, then applies:
@@ -264,6 +308,30 @@ class SkillRetriever:
         for rank, r in enumerate(embed):
             rrf_scores[r.skill.name] = rrf_scores.get(r.skill.name, 0.0) + 1.0 / (k + rank + 1)
 
+        # ponytail: body-text noise penalty at RRF level.
+        # BM25's _has_hint cap (score ≤0.85) and LIKE fallback (score 0.9)
+        # prevent body-only matches from outranking name/desc matches in
+        # pure BM25 mode, but RRF merges rank positions, not scores — the
+        # cap is bypassed. Penalize skills whose name AND description both
+        # lack any query term (consistent with LIKE fallback logic).
+        q_terms = {w for w in query.lower().split() if len(w) > 2}
+        if q_terms:
+            desc_lookup = {}
+            for r in bm25 + embed:
+                if r.skill.name not in desc_lookup:
+                    desc_lookup[r.skill.name] = r.skill.description or ""
+            for name in list(rrf_scores):
+                name_lower = name.lower()
+                desc_lower = desc_lookup.get(name, "").lower()
+                _has_hint = any(
+                    term in name_lower or term[:6] in name_lower
+                    or term in desc_lower
+                    for term in q_terms
+                    if term not in self.GENERIC_TERMS
+                )
+                if not _has_hint:
+                    rrf_scores[name] *= 0.7
+
         # Build merged results sorted by RRF score
         merged_names = sorted(rrf_scores, key=lambda n: -rrf_scores[n])
         seen = set()
@@ -290,11 +358,55 @@ class SkillRetriever:
         if session_skills:
             results = self.apply_graph_boost(results, session_skills)
 
-        # Feedback weights
-        from .feedback import FeedbackEngine
-        results = FeedbackEngine().apply_weights(results)
-
+        # ponytail: threshold filter at end of RRF
+        if threshold > 0:
+            results = [r for r in results if r.score >= threshold]
         return results[:top_k]
+
+    # ── Budget-aware loading ──────────────────────────────────────
+
+    def load_budgeted(self, query: str, budget_tokens: int = 500,
+                      threshold: float = 0.0,
+                      method: str = "rrf") -> list[dict]:
+        """Load skills up to a token budget (greedy by relevance)."""
+        if method == "bm25":
+            results = self.bm25_search(query, top_k=30, threshold=threshold)
+        else:
+            results = self.rrf_search(query, top_k=30, threshold=threshold)
+
+        loaded: list[dict] = []
+        total = 0
+        for r in results:
+            tokens = r.skill.token_cost_body or len(r.skill.body or "") // 4
+            # ponytail: skip outliers (> 2×budget) so smaller skills can fit
+            if tokens > budget_tokens * 2:
+                continue
+            # ponytail: always load the first result even if over budget
+            if total + tokens > budget_tokens and loaded:
+                break
+            total += tokens
+            loaded.append({
+                "name": r.skill.name,
+                "description": r.skill.description,
+                "category": r.skill.category,
+                "tags": r.skill.tags,
+                "body": r.skill.body,
+                "tokens": tokens,
+                "score": r.score,
+            })
+        # ponytail: if all skills were outliers, load the best anyway
+        if not loaded and results:
+            r = results[0]
+            loaded.append({
+                "name": r.skill.name,
+                "description": r.skill.description,
+                "category": r.skill.category,
+                "tags": r.skill.tags,
+                "body": r.skill.body,
+                "tokens": r.skill.token_cost_body or len(r.skill.body or "") // 4,
+                "score": r.score,
+            })
+        return loaded
 
     # ── Session-aware boost ──────────────────────────────────────────
 

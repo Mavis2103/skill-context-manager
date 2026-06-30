@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 from math import isclose
-from typing import Optional
 
 from .models import QueryResult
 
@@ -60,8 +59,11 @@ def detect_elbow(
     max_gap = max(deltas)
     max_gap_idx = deltas.index(max_gap)
 
-    # Only cut if gap is significantly larger than average
-    if max_gap >= avg_gap * min_gap_ratio:
+    # Only cut if gap is significantly larger than average AND is a
+    # meaningful gap relative to score magnitude (ponytail: prevents
+    # false elbows from noise-level deltas in compressed RRF scores).
+    min_gap = max(scores) * 0.05
+    if max_gap >= avg_gap * min_gap_ratio and max_gap >= min_gap:
         k = max_gap_idx + 1  # +1 because index 0 = between result 0 and 1
     else:
         k = len(scores)

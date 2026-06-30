@@ -1,9 +1,5 @@
 """Tests for skill dedup pipeline — ported from graphify dedup.py."""
 
-import tempfile
-from pathlib import Path
-
-from scm.db import init_schema
 from scm.dedup import (
     _jaro, _jaro_winkler, _norm, _entropy, _shingles,
     MinHash, MinHashLSH, deduplicate_skills,

@@ -1,8 +1,5 @@
 """Tests for adaptive retrieval — elbow detection and diverse filtering."""
 
-import tempfile
-from pathlib import Path
-
 from scm.adaptive import detect_elbow, adaptive_query, diverse_filter
 from scm.models import Skill, QueryResult
 

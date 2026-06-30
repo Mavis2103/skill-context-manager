@@ -9,12 +9,10 @@ Adapted for SCM skill dedup: simplified (no community boost, no cross-file guard
 from __future__ import annotations
 
 import hashlib
-import json
 import math
 import re
 import unicodedata
 from collections import defaultdict
-from typing import Optional
 
 from .models import Skill
 

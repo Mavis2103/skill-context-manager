@@ -86,6 +86,7 @@ class Skill:
         body = content
         tags = []
         category = "uncategorized"
+        raw_tags = []
 
         # Parse YAML frontmatter using proper YAML parser
         if content.startswith("---"):
@@ -99,14 +100,15 @@ class Skill:
                     if isinstance(fm, dict):
                         name = str(fm.get("name", name))
                         description = str(fm.get("description", ""))
-                        category = str(fm.get("category", category))
+                        if "category" in fm:
+                            category = str(fm.get("category", ""))
                         raw_tags = fm.get("tags", [])
                         if isinstance(raw_tags, list):
                             tags = [str(t).strip() for t in raw_tags]
                         elif isinstance(raw_tags, str):
                             tags = [t.strip() for t in raw_tags.strip("[]\"").split(",")]
                 except (ImportError, Exception):
-                    # Fallback: naive parser if yaml not installed or parsing fails
+                    # Fallback: naive parser
                     for line in frontmatter_text.strip().split("\n"):
                         if ":" in line:
                             key, _, val = line.partition(":")
@@ -119,6 +121,17 @@ class Skill:
                                 category = val
                             elif key.strip() == "tags":
                                 tags = [t.strip() for t in val.strip("[]\"").split(",")]
+
+        # ponytail: fallback category từ parent directory nếu frontmatter không có
+        if (not category or category == "uncategorized") and path:
+            try:
+                rel = Path(path).relative_to(Path.home() / ".hermes" / "skills")
+                if len(rel.parts) >= 2:
+                    parent_cat = rel.parts[0]
+                    if parent_cat and not parent_cat.startswith("."):
+                        category = parent_cat
+            except (ValueError, RuntimeError):
+                pass
 
         # Estimate token costs
         token_cost_metadata = cls._estimate_tokens(f"{name} {description}")
