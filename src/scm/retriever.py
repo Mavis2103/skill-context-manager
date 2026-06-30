@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 import sqlite3
 from pathlib import Path
@@ -17,10 +18,10 @@ logger = logging.getLogger("scm.retriever")
 class SkillRetriever:
     """Retrieve relevant skills using FTS5 BM25, with session + graph boosting."""
 
-    # ponytail: shared model/embeddings across ALL instances (class-level cache)
-    _shared_model = None
-    _shared_embeddings = None
-    _shared_emb_names = None
+    # ponytail: shared models/embeddings across ALL instances — keyed by model name
+    _shared_models = {}
+    _shared_embs = {}
+    _shared_names = {}
 
     # ponytail: terms too generic for name-boost.
     # Skills whose ONLY name match is a generic term (e.g. "pipeline") should
@@ -35,8 +36,12 @@ class SkillRetriever:
         "pipeline": ["ci", "cd", "build", "release", "deploy"],
     }
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Optional[Path] = None,
+                 embedding_model: Optional[str] = None):
         self.db_path = db_path
+        self.embedding_model = embedding_model or os.environ.get(
+            "SCM_EMBEDDING_MODEL", "all-MiniLM-L6-v2"
+        )
         init_schema(db_path)
 
     def _conn(self):
@@ -217,9 +222,11 @@ class SkillRetriever:
     # ── Fused search (BM25 + embedding RRF + graph boost + feedback) ──
 
     def _embedding_model(self):
-        """Lazy-load all-MiniLM-L6-v2 (sentence-transformers already installed)."""
-        if SkillRetriever._shared_model is not None:
-            return SkillRetriever._shared_model
+        """Lazy-load embedding model (sentence-transformers)."""
+        model_name = self.embedding_model
+        cached = SkillRetriever._shared_models.get(model_name)
+        if cached is not None:
+            return cached
         # ponytail: numpy >=2 breaks sentence-transformers model loading
         import numpy as np
         if np.__version__.startswith("2."):
@@ -228,24 +235,28 @@ class SkillRetriever:
             from sentence_transformers import SentenceTransformer
         except ImportError:
             return None
-        SkillRetriever._shared_model = SentenceTransformer("all-MiniLM-L6-v2")
-        return SkillRetriever._shared_model
+        model = SentenceTransformer(model_name)
+        SkillRetriever._shared_models[model_name] = model
+        return model
 
     def _skill_embeddings(self):
         """Compute + cache embeddings for all skills (name + description)."""
-        if SkillRetriever._shared_embeddings is not None:
-            return SkillRetriever._shared_emb_names, SkillRetriever._shared_embeddings
+        model_name = self.embedding_model
+        if model_name in SkillRetriever._shared_embs:
+            return SkillRetriever._shared_names[model_name], SkillRetriever._shared_embs[model_name]
         model = self._embedding_model()
+        if model is None:
+            return [], []
         with self._conn() as conn:
             rows = conn.execute("SELECT name, description FROM skills").fetchall()
         texts = [f"{r['name']}: {r['description']}" for r in rows]
-        SkillRetriever._shared_emb_names = [r["name"] for r in rows]
-        # ponytail: encode all at once — ~300ms for 124 skills on all-MiniLM
-        SkillRetriever._shared_embeddings = model.encode(texts, show_progress_bar=False)
-        return SkillRetriever._shared_emb_names, SkillRetriever._shared_embeddings
+        names = [r["name"] for r in rows]
+        SkillRetriever._shared_names[model_name] = names
+        SkillRetriever._shared_embs[model_name] = model.encode(texts, show_progress_bar=False)
+        return SkillRetriever._shared_names[model_name], SkillRetriever._shared_embs[model_name]
 
     def embedding_search(self, query: str, top_k: int = 20) -> list[QueryResult]:
-        """Semantic search via all-MiniLM-L6-v2 cosine similarity."""
+        """Semantic search via configured embedding model cosine similarity."""
         try:
             model = self._embedding_model()
             if model is None:

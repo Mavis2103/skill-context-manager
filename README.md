@@ -5,9 +5,9 @@
 > Reduces skill context tokens by **85-98%**, improves skill selection accuracy, and learns from feedback.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
-[![SQLite FTS5](https://img.shields.io/badge/search-BM25%20%2B%20Embedding%20%2B%20Cross--encoder-green)](https://sqlite.org/fts5.html)
+[![SQLite FTS5](https://img.shields.io/badge/search-BM25%20%2B%20Embedding%20%2B%20RRF%20%2B%20Graph-green)](https://sqlite.org/fts5.html)
 [![MCP](https://img.shields.io/badge/MCP-Server%20Ready-purple)](https://modelcontextprotocol.io)
-[![Version](https://img.shields.io/badge/version-0.8.1-orange)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.8.2-orange)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-186%20%E2%9C%94%EF%B8%8F-brightgreen)]()
 
 ---
@@ -642,7 +642,7 @@ uv run pytest --cov=src/scm/ tests/
 - [x] Semantic retrieval (embedding + hybrid)
 - [x] Session tracker with persistence
 - [x] Metadata optimizer (compress + expand)
-- [x] Cross-encoder reranker (miniLM)
+- [ ] Cross-encoder reranker (evaluated, skipped — RAM 1.2GB/1.5GB needed)
 - [x] Feedback loop with Bayesian weights
 - [x] Usage analytics and insights
 - [x] **MCP Server** (11 tools)

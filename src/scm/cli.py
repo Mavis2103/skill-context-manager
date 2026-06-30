@@ -62,6 +62,8 @@ Examples:
                          help="Score threshold filter (default: 0.0 = off)")
     p_query.add_argument("--budget", type=int, default=0,
                          help="Token budget for full-body loading (default: 0 = off)")
+    p_query.add_argument("--embedding-model", type=str, default=None,
+                         help="Sentence-transformers model (e.g. all-MiniLM-L6-v2, nomic-ai/nomic-embed-text-v1)")
 
     # ── session ──
     p_session = sub.add_parser("session", help="Manage skill usage sessions")
@@ -143,6 +145,9 @@ Examples:
 
     p_mcp_sub.add_parser("status", help="Check SCM MCP configuration status")
 
+    # ── tui ──
+    sub.add_parser("tui", help="Interactive TUI — search + browse skills")
+
     return parser
 
 
@@ -164,6 +169,7 @@ def cli():
         "clean-models": cmd_clean_models,
         "insights": cmd_insights,
         "mcp": cmd_mcp,
+        "tui": cmd_tui,
     }
 
     commands[args.command](args)
@@ -216,7 +222,7 @@ def cmd_query(args):
         print("❌ Please provide a query. Usage: scm query \"your query\"")
         return
 
-    retriever = SkillRetriever()
+    retriever = SkillRetriever(embedding_model=args.embedding_model)
 
     start = time.time()
 
@@ -341,7 +347,7 @@ def cmd_session(args):
         sid = session.session_id
         context = tracker.optimize_skill_context(sid, args.query)
         if args.query:
-            retriever = SkillRetriever()
+            retriever = SkillRetriever(embedding_model=getattr(args, 'embedding_model', None))
             results = retriever.rrf_search(args.query, top_k=3)
             context["matching_skills"] = [
                 {"name": r.skill.name, "description": r.skill.description}
@@ -481,6 +487,44 @@ def cmd_insights(args):
         count = len(insights['unused_skills'])
         sample = ', '.join(insights['unused_skills'][:5])
         print(f"\n   Unused skills ({count}): {sample}{'...' if count > 5 else ''}")
+
+def cmd_tui(args=None):
+    """Interactive TUI: search skills, browse results, view bodies."""
+    import readline
+    from .retriever import SkillRetriever
+    retriever = SkillRetriever()
+    retriever.warmup()
+    last_results = []
+    print("SCM Interactive (q quit, #N view skill body)")
+    try:
+        while True:
+            q = input("scm> ").strip()
+            if not q:
+                continue
+            if q.lower() in ("q", "quit", "exit"):
+                break
+            if q.startswith("#"):
+                try:
+                    idx = int(q[1:]) - 1
+                    if 0 <= idx < len(last_results):
+                        skill = last_results[idx].skill
+                        print(f"--- {skill.name} ---")
+                        print(skill.body[:500] or "(empty body)")
+                    else:
+                        print(f"  # out of range (1-{len(last_results)})")
+                except ValueError:
+                    print("  use #N e.g. #3")
+                continue
+            results = retriever.rrf_search(q, top_k=5)
+            last_results = results
+            if not results:
+                print("  (no matches)")
+                continue
+            for i, res in enumerate(results):
+                print(f"  #{i+1} {res.skill.name:35s} {res.score:.4f}  {res.skill.description[:60]}")
+    except (EOFError, KeyboardInterrupt):
+        print()
+
 
 
 def cmd_mcp(args):
